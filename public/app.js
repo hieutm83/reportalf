@@ -1,7 +1,7 @@
 (() => {
   const $ = (selector) => document.querySelector(selector);
   const state = { kind: 'week', anchorDate: '', period: null, snapshot: null, id: '', review: [], evaluations: [], workItems: [], historyKind: 'week' };
-  const colors = ['#2f6df6', '#4ea9a1', '#e5a943', '#d98695'];
+  const colors = ['#2563eb', '#7c3aed', '#f59e0b', '#ec4899', '#22c55e'];
 
   const emptyMetric = () => ({ value: null, previous: null, change: null });
   const emptySnapshot = (period) => ({ period, generatedAt: '', dataAvailable: false, warnings: [],
@@ -11,6 +11,11 @@
     finance: { feeTax: 0, affiliate: 0, ads: 0, refunds: 0, grossProfit: 0, gmv: 0, totalCostRate: null }, sources: [], products: [] });
 
   function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char])); }
+  function repairText(value) {
+    const text = String(value ?? '');
+    if (!/[ÃÂÐÄÆÅ]/.test(text)) return text;
+    try { return new TextDecoder('utf-8').decode(Uint8Array.from([...text].map((char) => char.charCodeAt(0)))); } catch { return text; }
+  }
   function formatNumber(value, digits = 0) { if (value === null || value === undefined || Number.isNaN(Number(value))) return 'Chưa có'; return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: digits }).format(Number(value)); }
   function formatMoney(value) {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return 'Chưa có';
@@ -85,30 +90,36 @@
   function renderFunnel() {
     const funnel = state.snapshot?.funnel || emptySnapshot(state.period).funnel;
     const rows = [
-      ['Lượt hiển thị sản phẩm', funnel.impressions, 'number'], ['Lượt nhấp vào sản phẩm', funnel.clicks, 'number'], ['Đơn hàng SKU', funnel.skuOrders, 'number']
+      { rate: '', label: 'Lượt hiển thị sản phẩm', metric: funnel.impressions },
+      { rate: 'CTR', rateMetric: funnel.ctr, label: 'Lượt nhấp vào sản phẩm', metric: funnel.clicks },
+      { rate: 'CTOR', rateMetric: funnel.ctor, label: 'Đơn hàng SKU', metric: funnel.skuOrders }
     ];
-    $('#funnel').innerHTML = rows.map(([label, metric, kind], index) => `<div class="funnel-step"><span>${label}</span><strong>${valueForMetric(metric, kind)}</strong></div>${index < 2 ? `<div class="funnel-detail"><span>${index === 0 ? 'CTR' : 'CTOR'}</span><strong>${formatPercent(index === 0 ? funnel.ctr.value : funnel.ctor.value)}</strong><span class="${trendClass(index === 0 ? funnel.ctr.change : funnel.ctor.change)}">${formatChange(index === 0 ? funnel.ctr.change : funnel.ctor.change)}</span></div>` : ''}`).join('');
+    $('#funnel').innerHTML = rows.map((item, index) => {
+      const rate = item.rate ? `<span>${item.rate}</span><strong>${formatPercent(item.rateMetric?.value)}</strong><small class="${trendClass(item.rateMetric?.change)}">${escapeHtml(formatChange(item.rateMetric?.change))}</small>` : '';
+      const arrow = item.rate ? '<svg viewBox="0 0 56 66" aria-hidden="true"><path d="M5 2 L18 50 L49 50 M43 44 L49 50 L43 56"></path></svg>' : '';
+      return `<div class="dashboard-funnel-rate">${rate}</div><div class="dashboard-funnel-arrow-slot${item.rate === 'CTOR' ? ' ctor' : ''}">${arrow}</div><div class="dashboard-funnel-step dashboard-funnel-step-${index + 1}"><span>${item.label}</span><div class="dashboard-funnel-value"><strong>${valueForMetric(item.metric, 'number')}</strong><small class="${trendClass(item.metric?.change)}">${escapeHtml(formatChange(item.metric?.change))}</small></div></div>`;
+    }).join('');
   }
 
   function renderFinance() {
     const finance = state.snapshot?.finance || emptySnapshot(state.period).finance;
-    const items = [['Phí và thuế', finance.feeTax], ['Hoa hồng KOC', finance.affiliate], ['Chi phí Ads', finance.ads], ['Hoàn tiền', finance.refunds]];
+    const items = [['Tổng phí & thuế', finance.feeTax], ['Hoa hồng KOC / Affiliate', finance.affiliate], ['Chi phí Ads', finance.ads], ['Hoàn tiền', finance.refunds], ['Còn lại (Lợi nhuận gộp ước tính)', finance.grossProfit]];
     const total = items.reduce((sum, item) => sum + Math.max(0, Number(item[1]) || 0), 0) || 1;
     let cursor = 0;
     const stops = items.map(([label, value], index) => { const start = cursor; cursor += (Math.max(0, Number(value) || 0) / total) * 100; return `${colors[index]} ${start}% ${cursor}%`; });
     $('#financeDonut').style.background = `conic-gradient(${stops.join(', ')})`;
-    $('#financeLegend').innerHTML = items.map(([label, value], index) => `<div class="legend-row"><i class="legend-swatch" style="background:${colors[index]}"></i><span>${label}<small>${formatPercent(total > 1 ? (Number(value) || 0) / total * 100 : 0)} cơ cấu</small></span><strong>${formatMoney(value)}</strong></div>`).join('');
+    $('#financeLegend').innerHTML = items.map(([label, value], index) => `<div class="legend-row"><i class="legend-swatch" style="background:${colors[index] || '#22c55e'}"></i><span>${escapeHtml(label)}<small>${formatPercent(total > 1 ? (Number(value) || 0) / total * 100 : 0)} cơ cấu</small></span><strong>${formatMoney(value)}</strong></div>`).join('');
     $('#financeFooter').innerHTML = `<span>Lợi nhuận gộp ước tính <strong>${formatMoney(finance.grossProfit)}</strong></span><span>Tổng chi phí / GMV <strong>${formatPercent(finance.totalCostRate === null ? null : finance.totalCostRate * 100)}</strong></span>`;
   }
 
   function changeMarkup(value) { return `<small class="change-note ${trendClass(value)}">${escapeHtml(formatChange(value))}</small>`; }
   function renderSources() {
     const rows = state.snapshot?.sources || [];
-    $('#sourcesTable').innerHTML = rows.length ? rows.map((row) => `<tr><td class="table-primary">${escapeHtml(row.label)}</td><td>${formatMoney(row.gmv)}</td><td>${formatPercent(row.contribution * 100)}</td><td>${formatNumber(row.impressions)}</td><td>${formatNumber(row.clicks)}</td><td>${formatPercent(row.ctr === null ? null : row.ctr * 100)}</td><td>${formatPercent(row.ctor === null ? null : row.ctor * 100)}</td></tr>`).join('') : `<tr><td colspan="7"><div class="empty-state">Chưa có dữ liệu nguồn trong kỳ này.</div></td></tr>`;
+    $('#sourcesTable').innerHTML = rows.length ? rows.map((row) => `<tr><td class="table-primary">${escapeHtml(repairText(row.label))}</td><td>${formatMoney(row.gmv)}</td><td>${formatPercent(row.contribution * 100)}</td><td>${formatNumber(row.impressions)}</td><td>${formatNumber(row.clicks)}</td><td>${formatPercent(row.ctr === null ? null : row.ctr * 100)}</td><td>${formatPercent(row.ctor === null ? null : row.ctor * 100)}</td></tr>`).join('') : `<tr><td colspan="7"><div class="empty-state">Chưa có dữ liệu nguồn trong kỳ này.</div></td></tr>`;
   }
   function renderProducts() {
     const rows = state.snapshot?.products || [];
-    $('#productsTable').innerHTML = rows.length ? rows.map((row) => `<tr><td><div class="product-cell">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="">` : '<span class="product-placeholder">SP</span>'}<span><strong class="table-primary">${escapeHtml(row.title)}</strong><small class="table-secondary">ID: ${escapeHtml(row.id)}</small></span></div></td><td>${formatMoney(row.gmv)}${changeMarkup(row.change?.gmv)}</td><td>${formatNumber(row.orders)}${changeMarkup(row.change?.orders)}</td><td>${formatNumber(row.impressions)}${changeMarkup(row.change?.impressions)}</td><td>${formatNumber(row.clicks)}${changeMarkup(row.change?.clicks)}</td><td>${formatPercent(row.ctr === null ? null : row.ctr * 100)}${changeMarkup(row.change?.ctr)}</td><td>${formatPercent(row.ctor === null ? null : row.ctor * 100)}${changeMarkup(row.change?.ctor)}</td></tr>`).join('') : `<tr><td colspan="7"><div class="empty-state">Chưa có dữ liệu sản phẩm trong kỳ này.</div></td></tr>`;
+    $('#productsTable').innerHTML = rows.length ? rows.map((row) => `<tr><td><div class="product-cell">${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="">` : '<span class="product-placeholder">SP</span>'}<span><strong class="table-primary">${escapeHtml(repairText(row.title))}</strong><small class="table-secondary">ID: ${escapeHtml(row.id)}</small></span></div></td><td>${formatMoney(row.gmv)}${changeMarkup(row.change?.gmv)}</td><td>${formatNumber(row.orders)}${changeMarkup(row.change?.orders)}</td><td>${formatNumber(row.impressions)}${changeMarkup(row.change?.impressions)}</td><td>${formatNumber(row.clicks)}${changeMarkup(row.change?.clicks)}</td><td>${formatPercent(row.ctr === null ? null : row.ctr * 100)}${changeMarkup(row.change?.ctr)}</td><td>${formatPercent(row.ctor === null ? null : row.ctor * 100)}${changeMarkup(row.change?.ctor)}</td></tr>`).join('') : `<tr><td colspan="7"><div class="empty-state">Chưa có dữ liệu sản phẩm trong kỳ này.</div></td></tr>`;
   }
 
   function inputCell(value, field, id, area = false) { return area ? `<textarea data-field="${field}" data-id="${id}" rows="2">${escapeHtml(value)}</textarea>` : `<input data-field="${field}" data-id="${id}" value="${escapeHtml(value)}">`; }

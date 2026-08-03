@@ -20,6 +20,11 @@ function nullable(value: unknown): number | null {
   return number(value);
 }
 
+function scaled(value: unknown, factor: number): number | null {
+  const parsed = nullable(value);
+  return parsed === null ? null : parsed * factor;
+}
+
 function metric(value: unknown, previous: unknown): Metric {
   const current = nullable(value);
   const old = nullable(previous);
@@ -185,14 +190,14 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
       )
     },
     operations: {
-      cancellationRate: metric(number(currentOps.cancellationRate) * 100, number(oldOps.cancellationRate) * 100),
-      returnRate: metric(number(currentOps.returnRate) * 100, number(oldOps.returnRate) * 100),
+      cancellationRate: metric(scaled(currentOps.cancellationRate, 100), scaled(oldOps.cancellationRate, 100)),
+      returnRate: metric(scaled(currentOps.returnRate, 100), scaled(oldOps.returnRate, 100)),
       fastShippingRate: metric(null, null), quickResponseRate: metric(null, null)
     },
     funnel: {
       impressions: metric(currentTotal.impressions, oldTotal.impressions), clicks: metric(currentTotal.clicks, oldTotal.clicks),
-      skuOrders: metric(currentTotal.skuOrders, oldTotal.skuOrders), ctr: metric(number(currentTotal.ctr) * 100, number(oldTotal.ctr) * 100),
-      ctor: metric(number(currentTotal.ctor) * 100, number(oldTotal.ctor) * 100)
+      skuOrders: metric(currentTotal.skuOrders, oldTotal.skuOrders), ctr: metric(scaled(currentTotal.ctr, 100), scaled(oldTotal.ctr, 100)),
+      ctor: metric(scaled(currentTotal.ctor, 100), scaled(oldTotal.ctor, 100))
     },
     finance, sources: sourceRows(current.products, finance.gmv), products: productRows(current.products, old.products)
   };

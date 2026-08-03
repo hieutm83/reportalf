@@ -8,6 +8,13 @@ function isKind(value: unknown): value is ReportKind {
   return value === 'week' || value === 'month';
 }
 
+function hasEncodingCorruption(value: unknown): boolean {
+  if (typeof value === 'string') return /[�]|(?:Ã.|Â.|Ð.|Ñ.|Æ.|Ä.|á»)/u.test(value);
+  if (Array.isArray(value)) return value.some(hasEncodingCorruption);
+  if (value && typeof value === 'object') return Object.values(value as Record<string, unknown>).some(hasEncodingCorruption);
+  return false;
+}
+
 async function api(request: Request, env: Env, url: URL): Promise<Response> {
   if (request.method === 'GET' && url.pathname === '/api/health') {
     return json({ ok: true, service: 'report-alf', supabaseConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY),
@@ -33,7 +40,8 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
     if (!isKind(input.kind)) return json({ ok: false, error: 'Loại báo cáo không hợp lệ.' }, 400);
     const period = reportPeriod(input.kind, parseDate(input.anchorDate));
     const cached = await getReportForPeriod(env, period.kind, period.startDate);
-    if (cached && cached.dataAvailable && input.forceRefresh !== true) return json({ ok: true, data: cached });
+    const cacheNeedsRepair = cached ? hasEncodingCorruption(cached) : false;
+    if (cached && cached.dataAvailable && input.forceRefresh !== true && !cacheNeedsRepair) return json({ ok: true, data: cached });
     const snapshot = await loadSourceReport(env, period);
     const saved = await saveReport(env, snapshot, {
       review: cached?.review || [], evaluations: cached?.evaluations || [], workItems: cached?.workItems || []

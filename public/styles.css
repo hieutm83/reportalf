@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --page: #f4f7fb;
   --surface: #ffffff;
   --surface-soft: #eef3fa;
@@ -13,7 +13,7 @@
   --warning: #a96a18;
   --radius: 14px;
   --shadow: 0 12px 32px rgba(32, 58, 98, .08);
-  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-family: Arial, "Helvetica Neue", sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -103,6 +103,28 @@ h2 { margin-bottom: 0; font-size: 17px; letter-spacing: -.015em; }
 .finance-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding-top: 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .finance-footer strong { color: var(--ink); }
 
+/* Match the source dashboard's product-analysis funnel geometry. */
+.funnel { display: grid; grid-template-columns: 120px 58px minmax(320px, 560px); justify-content: center; gap: 10px 0; align-items: center; padding: 12px 0 6px; }
+.dashboard-funnel-rate { min-height: 60px; color: var(--muted); font-size: 12px; text-align: right; padding-right: 8px; }
+.dashboard-funnel-rate strong { display: block; color: var(--ink); font-size: 18px; }
+.dashboard-funnel-rate small, .dashboard-funnel-value small { display: block; margin-top: 3px; font-size: 10px; font-weight: 700; }
+.dashboard-funnel-arrow-slot { position: relative; align-self: stretch; min-height: 60px; color: #0ea5e9; }
+.dashboard-funnel-arrow-slot.ctor { color: #ef4444; }
+.dashboard-funnel-arrow-slot svg { position: absolute; left: 0; top: -32px; width: 56px; height: 66px; overflow: visible; color: inherit; }
+.dashboard-funnel-arrow-slot path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.dashboard-funnel-step { display: flex; align-items: center; justify-content: space-between; min-height: 60px; padding: 12px 48px; color: #fff; font-weight: 700; background: #67c9c6; clip-path: polygon(4% 0, 96% 0, 90% 100%, 10% 100%); }
+.dashboard-funnel-step-2 { width: 88%; justify-self: center; background: #35b8b5; }
+.dashboard-funnel-step-3 { width: 76%; justify-self: center; background: #0ea5a4; }
+.dashboard-funnel-step > span { font-size: 12px; }
+.dashboard-funnel-value { text-align: right; }
+.dashboard-funnel-value strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.dashboard-funnel-value small { color: rgba(255,255,255,.9); }
+.dashboard-funnel-value small.trend-up { color: #bbf7d0; }
+.dashboard-funnel-value small.trend-down { color: #fecaca; }
+.finance-layout { grid-template-columns: minmax(220px, 1fr) minmax(250px, 1fr); gap: 24px; }
+.donut { width: 220px; height: 220px; }
+.donut::after { inset: 51px; }
+
 .table-panel { margin-bottom: 18px; }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 12px; }
@@ -178,7 +200,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--accent) 5%, transparent
 .dialog-sync { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); }
 .dialog-shortcut { color: var(--muted); font-size: 10px; }
 kbd { padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); font-size: 10px; }
-.dialog-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.dialog-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
 .dialog-controls .button { width: 100%; padding: 0 8px; }
 .dialog-divider { height: 1px; margin: 22px 0; background: var(--line); }
 .dialog-section-label { margin-bottom: 0; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
@@ -186,5 +208,5 @@ kbd { padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; backg
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @keyframes pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
-@media (max-width: 900px) { .metric-grid-core, .metric-grid-operations { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split-grid { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .topbar { height: 64px; padding: 0 17px; } .page-content { width: min(100% - 28px, 1400px); padding-top: 22px; } .period-toolbar { margin-bottom: 28px; } .period-picker-button { min-width: min(100%, 300px); } .report-heading { display: block; } .metric-grid-core, .metric-grid-operations { grid-template-columns: 1fr 1fr; gap: 9px; } .metric-card { padding: 15px; min-height: 112px; } .metric-value { font-size: 22px; } .panel { padding: 18px 15px; } .finance-layout { grid-template-columns: 1fr; justify-items: center; gap: 18px; } .finance-legend { width: 100%; } .choice-row { grid-template-columns: 1fr; } .dialog-controls { grid-template-columns: 1fr; } .section-block { margin: 40px 0; } }
+@media (max-width: 900px) { .metric-grid-core, .metric-grid-operations { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split-grid { grid-template-columns: 1fr; } .funnel { grid-template-columns: 100px 48px minmax(260px, 1fr); } .dashboard-funnel-step { padding: 12px 30px; } }
+@media (max-width: 640px) { .topbar { height: 64px; padding: 0 17px; } .page-content { width: min(100% - 28px, 1400px); padding-top: 22px; } .period-toolbar { margin-bottom: 28px; } .period-picker-button { min-width: min(100%, 300px); } .report-heading { display: block; } .metric-grid-core, .metric-grid-operations { grid-template-columns: 1fr 1fr; gap: 9px; } .metric-card { padding: 15px; min-height: 112px; } .metric-value { font-size: 22px; } .panel { padding: 18px 15px; } .finance-layout { grid-template-columns: 1fr; justify-items: center; gap: 18px; } .finance-legend { width: 100%; } .donut { width: 190px; height: 190px; } .donut::after { inset: 44px; } .funnel { grid-template-columns: 70px 38px minmax(230px, 1fr); gap: 6px 0; overflow-x: auto; justify-content: start; } .dashboard-funnel-step { padding: 10px 22px; } .dashboard-funnel-step > span { font-size: 11px; } .dashboard-funnel-value strong { font-size: 16px; } .choice-row { grid-template-columns: 1fr; } .dialog-controls { grid-template-columns: 1fr; } .section-block { margin: 40px 0; } }
