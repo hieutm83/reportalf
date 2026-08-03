@@ -2,6 +2,7 @@ name = "report-alf"
 main = "src/index.ts"
 compatibility_date = "2026-08-03"
 workers_dev = true
+preview_urls = false
 routes = [
   { pattern = "anlanh-report.indevs.in", custom_domain = true }
 ]
