@@ -14,23 +14,21 @@
         <span class="brand-mark">A</span>
         <span><strong>REPORT</strong><small>ANLANHFARM</small></span>
       </a>
-      <div class="topbar-actions">
-        <span class="sync-state" id="syncState"><span class="state-dot"></span> Chưa đồng bộ</span>
-        <button class="button button-quiet" id="historyButton" type="button">Báo cáo đã lưu</button>
-        <button class="icon-button" id="settingsButton" type="button" aria-label="Mở cài đặt báo cáo">i</button>
-      </div>
     </header>
 
     <main class="page-content">
+      <section class="period-toolbar" aria-label="Khoảng thời gian báo cáo">
+        <span class="period-toolbar-label">Bấm để đổi khoảng thời gian xem</span>
+        <button class="period-picker-button" id="periodPickerButton" type="button" aria-haspopup="dialog" aria-expanded="false">
+          <span class="period-calendar" aria-hidden="true">▣</span><span id="periodPickerLabel">Đang tải kỳ báo cáo...</span><span class="period-chevron" aria-hidden="true">⌄</span>
+        </button>
+        <div class="period-popover" id="periodPopover" hidden></div>
+      </section>
       <section class="report-heading" aria-labelledby="pageTitle">
         <div>
           <p class="eyebrow">BÁO CÁO HIỆU SUẤT</p>
           <h1 id="pageTitle">Báo cáo tuần</h1>
           <p class="period-line" id="periodLine">Đang tải kỳ báo cáo...</p>
-        </div>
-        <div class="heading-actions">
-          <button class="button button-secondary" id="refreshButton" type="button">Lấy số liệu</button>
-          <button class="button button-primary" id="saveButton" type="button">Lưu báo cáo</button>
         </div>
       </section>
 
@@ -98,7 +96,11 @@
 
   <dialog class="settings-dialog" id="settingsDialog">
     <form method="dialog" class="dialog-card" id="settingsForm">
-      <div class="dialog-head"><div><p class="eyebrow">CÀI ĐẶT BÁO CÁO</p><h2>Chọn kỳ xem</h2></div><button class="icon-button" value="cancel" aria-label="Đóng">×</button></div>
+      <div class="dialog-head"><div><p class="eyebrow">ĐIỀU KHIỂN BÁO CÁO</p><h2>Cài đặt và đồng bộ</h2></div><button class="icon-button" value="cancel" aria-label="Đóng">×</button></div>
+      <div class="dialog-sync"><span class="sync-state" id="syncState"><span class="state-dot"></span> Chưa đồng bộ</span><span class="dialog-shortcut">Phím <kbd>i</kbd> để mở</span></div>
+      <div class="dialog-controls"><button class="button button-secondary" id="historyButton" type="button">Báo cáo đã lưu</button><button class="button button-secondary" id="refreshButton" type="button">Lấy số liệu</button><button class="button button-primary" id="saveButton" type="button">Lưu báo cáo</button></div>
+      <div class="dialog-divider"></div>
+      <p class="dialog-section-label">Kỳ tùy chỉnh</p>
       <div class="choice-row"><label class="choice"><input type="radio" name="reportKind" value="week" checked><span><strong>Báo cáo tuần</strong><small>Thứ 7 tuần trước đến thứ 6 tuần này</small></span></label><label class="choice"><input type="radio" name="reportKind" value="month"><span><strong>Báo cáo tháng</strong><small>Luôn chốt vào ngày 1 hàng tháng</small></span></label></div>
       <label class="field"><span>Ngày chốt báo cáo</span><input id="anchorDate" type="date" required><small id="anchorHelp">Chọn thứ 7 làm mốc chốt tuần.</small></label>
       <div class="period-preview" id="periodPreview"></div>
@@ -106,6 +108,6 @@
     </form>
   </dialog>
 
-  <script src="/app.js" defer></script>
+  <script src="/app.js?v=20260803-2" defer></script>
 </body>
 </html>

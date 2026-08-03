@@ -40,7 +40,26 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .sync-state.is-ready .state-dot { background: var(--positive); }
 .sync-state.is-loading .state-dot { background: var(--warning); animation: pulse 1.2s ease-in-out infinite; }
 
-.page-content { width: min(1400px, calc(100% - 40px)); margin: 0 auto; padding: 54px 0 100px; }
+.page-content { width: min(1400px, calc(100% - 40px)); margin: 0 auto; padding: 28px 0 100px; position: relative; }
+.period-toolbar { position: relative; z-index: 15; display: grid; justify-items: center; gap: 7px; margin: 0 auto 34px; }
+.period-toolbar-label { color: var(--muted); font-size: 11px; font-weight: 700; }
+.period-picker-button { display: inline-flex; align-items: center; gap: 9px; min-width: 260px; max-width: min(100%, 340px); padding: 12px 15px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); font-size: 12px; text-align: left; }
+.period-picker-button:hover, .period-picker-button[aria-expanded="true"] { border-color: color-mix(in srgb, var(--accent) 58%, var(--line)); color: var(--accent); }
+.period-calendar { color: var(--muted); font-size: 13px; }
+.period-picker-button #periodPickerLabel { overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; }
+.period-chevron { color: var(--muted); font-size: 16px; line-height: 1; }
+.period-popover { position: absolute; top: calc(100% + 9px); width: min(360px, calc(100vw - 32px)); overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); box-shadow: 0 22px 55px rgba(25, 48, 83, .18); }
+.period-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 9px; border-bottom: 1px solid var(--line); background: var(--surface-soft); }
+.period-tab { min-height: 37px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 750; }
+.period-tab.is-active { border-color: var(--line); background: var(--surface); color: var(--accent); box-shadow: 0 3px 10px rgba(31, 64, 115, .06); }
+.period-options { max-height: 345px; overflow-y: auto; padding: 7px; }
+.period-option { display: block; width: 100%; padding: 12px 11px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); text-align: left; }
+.period-option:hover { background: var(--surface-soft); }
+.period-option.is-selected { background: color-mix(in srgb, var(--negative) 9%, var(--surface)); }
+.period-option strong, .period-option small { display: block; }
+.period-option strong { color: var(--ink); font-size: 11px; font-weight: 650; }
+.period-option.is-selected strong { color: var(--negative); font-weight: 800; }
+.period-option small { margin-top: 3px; color: var(--muted); font-size: 10px; }
 .report-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 28px; }
 .eyebrow { margin: 0 0 8px; color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .18em; }
 h1, h2, p { margin-top: 0; }
@@ -156,9 +175,16 @@ tbody tr:hover td { background: color-mix(in srgb, var(--accent) 5%, transparent
 .field small { font-weight: 400; }
 .period-preview { margin-top: 17px; padding: 12px; border-radius: 8px; background: var(--surface-soft); color: var(--ink); font-size: 12px; }
 .dialog-actions { display: flex; justify-content: end; gap: 9px; margin-top: 25px; }
+.dialog-sync { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); }
+.dialog-shortcut { color: var(--muted); font-size: 10px; }
+kbd { padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); font-size: 10px; }
+.dialog-controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.dialog-controls .button { width: 100%; padding: 0 8px; }
+.dialog-divider { height: 1px; margin: 22px 0; background: var(--line); }
+.dialog-section-label { margin-bottom: 0; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @keyframes pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
 @media (max-width: 900px) { .metric-grid-core, .metric-grid-operations { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split-grid { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .topbar { height: 64px; padding: 0 17px; } .topbar .button-quiet, .sync-state { display: none; } .page-content { width: min(100% - 28px, 1400px); padding-top: 35px; } .report-heading { display: block; } .heading-actions { margin-top: 19px; } .heading-actions .button { flex: 1; } .metric-grid-core, .metric-grid-operations { grid-template-columns: 1fr 1fr; gap: 9px; } .metric-card { padding: 15px; min-height: 112px; } .metric-value { font-size: 22px; } .panel { padding: 18px 15px; } .finance-layout { grid-template-columns: 1fr; justify-items: center; gap: 18px; } .finance-legend { width: 100%; } .choice-row { grid-template-columns: 1fr; } .section-block { margin: 40px 0; } }
+@media (max-width: 640px) { .topbar { height: 64px; padding: 0 17px; } .page-content { width: min(100% - 28px, 1400px); padding-top: 22px; } .period-toolbar { margin-bottom: 28px; } .period-picker-button { min-width: min(100%, 300px); } .report-heading { display: block; } .metric-grid-core, .metric-grid-operations { grid-template-columns: 1fr 1fr; gap: 9px; } .metric-card { padding: 15px; min-height: 112px; } .metric-value { font-size: 22px; } .panel { padding: 18px 15px; } .finance-layout { grid-template-columns: 1fr; justify-items: center; gap: 18px; } .finance-legend { width: 100%; } .choice-row { grid-template-columns: 1fr; } .dialog-controls { grid-template-columns: 1fr; } .section-block { margin: 40px 0; } }

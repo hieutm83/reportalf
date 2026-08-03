@@ -27,11 +27,38 @@
   function trendClass(value) { return value === null || value === undefined ? 'trend-flat' : value >= 0 ? 'trend-up' : 'trend-down'; }
   function valueForMetric(metric, kind) { const value = metric?.value; if (kind === 'money') return formatMoney(value); if (kind === 'percent') return formatPercent(value); return formatNumber(value); }
   function periodLabel(period) { return period ? `${period.title} · ${formatDate(period.startDate)} - ${formatDate(period.endDate)}` : 'Đang tải kỳ báo cáo...'; }
+  function makePeriod(kind, anchorDate) {
+    const [year, month, day] = String(anchorDate).split('-').map(Number);
+    const anchor = new Date(Date.UTC(year, month - 1, day));
+    if (kind === 'week') {
+      const start = new Date(anchor); start.setUTCDate(start.getUTCDate() - 7);
+      const end = new Date(anchor); end.setUTCDate(end.getUTCDate() - 1);
+      const iso = (date) => date.toISOString().slice(0, 10);
+      return { kind, anchorDate, startDate: iso(start), endDate: iso(end), title: `Tuần ${formatDate(iso(start))} - ${formatDate(iso(end))}` };
+    }
+    const end = new Date(Date.UTC(year, month - 1, 0));
+    const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
+    const iso = (date) => date.toISOString().slice(0, 10);
+    return { kind, anchorDate: `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-01`, startDate: iso(start), endDate: iso(end), title: `Tháng ${String(start.getUTCMonth() + 1).padStart(2, '0')}/${start.getUTCFullYear()}` };
+  }
+  function periodAnchors(kind) {
+    const base = window.__periods?.[kind]?.anchorDate || state.anchorDate;
+    if (!base) return [];
+    const values = [];
+    if (kind === 'week') {
+      const date = new Date(`${base}T00:00:00Z`);
+      for (let index = 0; index < 53; index += 1) { const current = new Date(date); current.setUTCDate(date.getUTCDate() - index * 7); values.push(current.toISOString().slice(0, 10)); }
+    } else {
+      const date = new Date(`${base.slice(0, 7)}-01T00:00:00Z`);
+      for (let index = 0; index < 18; index += 1) { const current = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() - index, 1)); values.push(current.toISOString().slice(0, 10)); }
+    }
+    return values;
+  }
 
   async function api(path, options = {}) {
     const response = await fetch(path, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok || body.ok !== true) throw new Error(body.error || `Yêu cầu thất bại (${response.status}).`);
+    if (!response.ok || body.ok !== true) throw new Error(body.error || (response.ok ? 'Máy chủ trả dữ liệu không hợp lệ.' : `Yêu cầu thất bại (${response.status}).`));
     return body.data;
   }
 
@@ -100,10 +127,39 @@
     $('#workTable').innerHTML = `<div class="edit-grid work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Chi tiết hành động</div><div class="edit-head">Mục tiêu KPI</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head"></div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}</div><div class="edit-cell">${inputCell(row.title, 'title', row.id, true)}</div><div class="edit-cell">${inputCell(row.detail, 'detail', row.id, true)}</div><div class="edit-cell">${inputCell(row.kpi, 'kpi', row.id, true)}</div><div class="edit-cell">${inputCell(row.owner, 'owner', row.id)}</div><div class="edit-cell">${inputCell(row.deadline, 'deadline', row.id)}</div><div class="edit-cell"><button class="delete-row" data-delete-work="${row.id}" type="button" aria-label="Xóa công việc">×</button></div>`).join('')}</div>`;
     if (!rows.length) $('#workTable').innerHTML = '<div class="empty-state">Chưa có công việc. Thêm một dòng để bắt đầu kế hoạch.</div>';
   }
+  function renderPeriodPicker() {
+    const label = $('#periodPickerLabel');
+    if (label) label.textContent = state.period ? `${state.period.title}` : 'Đang tải kỳ báo cáo...';
+    const popover = $('#periodPopover');
+    if (!popover) return;
+    const kind = state.kind;
+    const options = periodAnchors(kind).map((anchor, index) => {
+      const period = makePeriod(kind, anchor);
+      const isSelected = anchor === state.anchorDate && kind === state.kind;
+      const isCurrent = index === 0;
+      return `<button class="period-option${isSelected ? ' is-selected' : ''}" type="button" data-period-kind="${kind}" data-period-anchor="${anchor}"><strong>${isCurrent ? `${kind === 'week' ? 'Tuần hiện tại' : 'Tháng hiện tại'} · ` : ''}${escapeHtml(period.title)}</strong><small>${isCurrent ? 'So sánh cùng kỳ trước' : `Bắt đầu ${kind === 'week' ? 'Thứ 7' : 'ngày 1'}`}</small></button>`;
+    }).join('');
+    popover.innerHTML = `<div class="period-tabs"><button class="period-tab${kind === 'week' ? ' is-active' : ''}" type="button" data-period-tab="week">Tuần trong năm</button><button class="period-tab${kind === 'month' ? ' is-active' : ''}" type="button" data-period-tab="month">Tháng trong năm</button></div><div class="period-options">${options || '<div class="empty-state">Chưa có kỳ báo cáo.</div>'}</div>`;
+    popover.querySelectorAll('[data-period-tab]').forEach((button) => button.addEventListener('click', () => { state.kind = button.dataset.periodTab; renderPeriodPicker(); }));
+    popover.querySelectorAll('[data-period-anchor]').forEach((button) => button.addEventListener('click', () => selectPeriod(button.dataset.periodKind, button.dataset.periodAnchor)));
+  }
+  function togglePeriodPicker(force) {
+    const popover = $('#periodPopover');
+    const button = $('#periodPickerButton');
+    if (!popover || !button) return;
+    const open = typeof force === 'boolean' ? force : popover.hidden;
+    if (open) renderPeriodPicker();
+    popover.hidden = !open;
+    button.setAttribute('aria-expanded', String(open));
+  }
+  function selectPeriod(kind, anchorDate) {
+    state.kind = kind; state.anchorDate = anchorDate; state.period = makePeriod(kind, anchorDate); state.snapshot = emptySnapshot(state.period); state.id = ''; state.review = []; state.evaluations = []; state.workItems = [];
+    togglePeriodPicker(false); renderAll(); bindEditors(); loadSource();
+  }
   function renderAll() {
     $('#pageTitle').textContent = state.kind === 'week' ? 'Báo cáo tuần' : 'Báo cáo tháng';
     $('#periodLine').textContent = periodLabel(state.period);
-    renderMetrics(); renderFunnel(); renderFinance(); renderSources(); renderProducts(); renderReview(); renderEvaluations(); renderWork();
+    renderPeriodPicker(); renderMetrics(); renderFunnel(); renderFinance(); renderSources(); renderProducts(); renderReview(); renderEvaluations(); renderWork();
   }
 
   function syncEditableRows(root, collection) {
@@ -117,7 +173,16 @@
   async function loadSource() {
     if (!state.period) return;
     setBusy(true); setSync('Đang lấy số liệu', 'loading'); setNotice('');
-    try { state.snapshot = await api('/api/source-report', { method: 'POST', body: JSON.stringify({ kind: state.kind, anchorDate: state.anchorDate }) }); state.id = ''; renderAll(); bindEditors(); setSync('Đã đồng bộ', 'ready'); setNotice('Số liệu đã được lấy từ dashboard nguồn. Hãy lưu để giữ lại báo cáo và công việc.', true); }
+    try {
+      let snapshot;
+      let lastError;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try { snapshot = await api('/api/source-report', { method: 'POST', body: JSON.stringify({ kind: state.kind, anchorDate: state.anchorDate }) }); break; }
+        catch (error) { lastError = error; if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 650)); }
+      }
+      if (!snapshot) throw lastError || new Error('Không thể lấy số liệu.');
+      state.snapshot = snapshot; state.id = ''; renderAll(); bindEditors(); setSync('Đã đồng bộ', 'ready'); setNotice('Số liệu đã được lấy từ dashboard nguồn. Hãy lưu để giữ lại báo cáo và công việc.', true);
+    }
     catch (error) { setSync('Chưa đồng bộ'); setNotice(error.message || 'Không thể lấy số liệu.'); }
     finally { setBusy(false); }
   }
@@ -133,10 +198,14 @@
   function openHistory() { $('#overlay').hidden = false; $('#historyDrawer').classList.add('is-open'); $('#historyDrawer').setAttribute('aria-hidden', 'false'); loadHistory(state.historyKind); }
   function closeHistory() { $('#overlay').hidden = true; $('#historyDrawer').classList.remove('is-open'); $('#historyDrawer').setAttribute('aria-hidden', 'true'); }
   function openSettings() { const dialog = $('#settingsDialog'); document.querySelector(`input[name="reportKind"][value="${state.kind}"]`).checked = true; $('#anchorDate').value = state.anchorDate; updatePeriodPreview(); dialog.showModal(); }
-  function applySettings(event) { event.preventDefault(); state.kind = document.querySelector('input[name="reportKind"]:checked').value; state.anchorDate = $('#anchorDate').value; state.period = window.__periods?.[state.kind]; if (!state.period || state.period.anchorDate !== state.anchorDate) { const [year, month, day] = state.anchorDate.split('-').map(Number); const d = new Date(Date.UTC(year, month - 1, day)); let start; let end; if (state.kind === 'week') { start = new Date(d); start.setUTCDate(start.getUTCDate() - 7); end = new Date(d); end.setUTCDate(end.getUTCDate() - 1); } else { end = new Date(Date.UTC(year, month, 0)); start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1)); } const iso = (date) => date.toISOString().slice(0, 10); state.period = { kind: state.kind, anchorDate: state.anchorDate, startDate: iso(start), endDate: iso(end), title: state.kind === 'week' ? `Tuần ${formatDate(iso(start))} - ${formatDate(iso(end))}` : `Tháng ${String(start.getUTCMonth() + 1).padStart(2, '0')}/${start.getUTCFullYear()}` }; } state.snapshot = emptySnapshot(state.period); state.id = ''; state.review = []; state.evaluations = []; state.workItems = []; renderAll(); bindEditors(); $('#settingsDialog').close(); loadSource(); }
+  function applySettings(event) { event.preventDefault(); state.kind = document.querySelector('input[name="reportKind"]:checked').value; state.anchorDate = $('#anchorDate').value; state.period = makePeriod(state.kind, state.anchorDate); state.snapshot = emptySnapshot(state.period); state.id = ''; state.review = []; state.evaluations = []; state.workItems = []; $('#settingsDialog').close(); renderAll(); bindEditors(); loadSource(); }
   function addWork() { state.workItems.push({ id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`, title: '', detail: '', kpi: '', owner: '', deadline: '' }); renderWork(); bindEditors(); }
   function wire() {
-    $('#settingsButton').addEventListener('click', openSettings); $('#historyButton').addEventListener('click', openHistory); $('#closeHistoryButton').addEventListener('click', closeHistory); $('#overlay').addEventListener('click', closeHistory); $('#refreshButton').addEventListener('click', loadSource); $('#saveButton').addEventListener('click', saveCurrent); $('#addWorkButton').addEventListener('click', addWork); $('#settingsForm').addEventListener('submit', applySettings); $('#anchorDate').addEventListener('change', updatePeriodPreview); document.querySelectorAll('input[name="reportKind"]').forEach((input) => input.addEventListener('change', updatePeriodPreview)); document.querySelectorAll('[data-history-kind]').forEach((tab) => tab.addEventListener('click', () => { document.querySelectorAll('[data-history-kind]').forEach((item) => item.classList.toggle('is-active', item === tab)); loadHistory(tab.dataset.historyKind); })); $('#workTable').addEventListener('click', (event) => { const button = event.target.closest('[data-delete-work]'); if (!button) return; state.workItems = state.workItems.filter((row) => row.id !== button.dataset.deleteWork); renderWork(); bindEditors(); }); document.addEventListener('keydown', (event) => { if (event.key.toLowerCase() === 'i' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) { event.preventDefault(); openSettings(); } if (event.key === 'Escape') closeHistory(); }); }
+    $('#historyButton').addEventListener('click', openHistory); $('#closeHistoryButton').addEventListener('click', closeHistory); $('#overlay').addEventListener('click', closeHistory); $('#refreshButton').addEventListener('click', loadSource); $('#saveButton').addEventListener('click', saveCurrent); $('#addWorkButton').addEventListener('click', addWork); $('#settingsForm').addEventListener('submit', applySettings); $('#anchorDate').addEventListener('change', updatePeriodPreview); $('#periodPickerButton').addEventListener('click', () => togglePeriodPicker());
+    document.querySelectorAll('input[name="reportKind"]').forEach((input) => input.addEventListener('change', updatePeriodPreview)); document.querySelectorAll('[data-history-kind]').forEach((tab) => tab.addEventListener('click', () => { document.querySelectorAll('[data-history-kind]').forEach((item) => item.classList.toggle('is-active', item === tab)); loadHistory(tab.dataset.historyKind); }));
+    document.addEventListener('click', (event) => { if (!event.target.closest('.period-toolbar')) togglePeriodPicker(false); });
+    $('#workTable').addEventListener('click', (event) => { const button = event.target.closest('[data-delete-work]'); if (!button) return; state.workItems = state.workItems.filter((row) => row.id !== button.dataset.deleteWork); renderWork(); bindEditors(); }); document.addEventListener('keydown', (event) => { if (event.key.toLowerCase() === 'i' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) { event.preventDefault(); openSettings(); } if (event.key === 'Escape') { closeHistory(); togglePeriodPicker(false); } });
+  }
 
   async function init() {
     wire();
