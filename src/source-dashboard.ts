@@ -25,6 +25,12 @@ function scaled(value: unknown, factor: number): number | null {
   return parsed === null ? null : parsed * factor;
 }
 
+function percentValue(...values: unknown[]): number | null {
+  const parsed = values.map(nullable).find((value): value is number => value !== null);
+  if (parsed === undefined) return null;
+  return Math.abs(parsed) <= 1 ? parsed * 100 : parsed;
+}
+
 function metric(value: unknown, previous: unknown): Metric {
   const current = nullable(value);
   const old = nullable(previous);
@@ -115,16 +121,20 @@ function sourceRows(current: any, totalGmv: number): SourceRow[] {
   });
 }
 
-function productRows(current: any, previous: any): ProductRow[] {
+function productRows(current: any, previous: any, catalog: Map<string, string> = new Map()): ProductRow[] {
   const currentPayload = payload(current);
   const previousPayload = payload(previous);
-  const previousMap = new Map<string, any>((previousPayload?.current?.products || previousPayload?.products || []).map((item: any) => [String(item.id), productMetrics(item)]));
+  const previousProducts = previousPayload?.current?.products || previousPayload?.products || [];
+  const previousMap = new Map<string, any>(previousProducts.map((item: any) => [String(item.id), productMetrics(item)]));
+  const previousImages = new Map<string, string>(previousProducts.map((item: any) => [String(item.id), String(item.imageUrl || item.productImageUrl || '')]));
   return (currentPayload?.current?.products || currentPayload?.products || []).map((item: any) => {
     const value = productMetrics(item);
     const old = previousMap.get(String(item.id)) || {};
     const gmv = number(value.gmv), orders = number(value.skuOrders || value.orders), impressions = number(value.impressions), clicks = number(value.clicks);
     const ctr = nullable(value.ctr), ctor = nullable(value.ctor);
-    return { id: String(item.id || ''), title: String(item.title || `Sản phẩm ${item.id || ''}`), imageUrl: String(item.imageUrl || ''),
+    const id = String(item.id || '');
+    const imageUrl = String(item.imageUrl || item.productImageUrl || item.product_image_url || item.image_url || catalog.get(id) || previousImages.get(id) || '');
+    return { id, title: String(item.title || item.productName || `Sản phẩm ${id}`), imageUrl,
       gmv, orders, impressions, clicks, ctr, ctor,
       change: {
         gmv: metric(gmv, old.gmv).change, orders: metric(orders, old.skuOrders || old.orders).change,
@@ -175,9 +185,19 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
   const previousAdsCost = reportedPreviousAdsCost && reportedPreviousAdsCost > 0 ? reportedPreviousAdsCost : (previousFinance.gmv > 0 ? previousFinance.ads : null);
   const adsCostPerOrder = nullable(currentAds.costPerOrder);
   const previousAdsCostPerOrder = nullable(oldAds.costPerOrder);
-  const warnings = [
-    'Tỷ lệ gửi hàng nhanh và tỷ lệ phản hồi nhanh chưa có API trong dashboard nguồn.'
-  ];
+  const currentOtdr = percentValue(currentOps.otdr, currentOps.OTDR, currentOps.deliveryOnTimeRate, currentOps.onTimeDeliveryRate);
+  const previousOtdr = percentValue(oldOps.otdr, oldOps.OTDR, oldOps.deliveryOnTimeRate, oldOps.onTimeDeliveryRate);
+  const currentResponse24h = percentValue(currentOps.responseWithin24Hours, currentOps.response24hRate, currentOps.customerServiceResponseRate, currentOps.responseRate);
+  const previousResponse24h = percentValue(oldOps.responseWithin24Hours, oldOps.response24hRate, oldOps.customerServiceResponseRate, oldOps.responseRate);
+  const warnings: string[] = [];
+  if (currentOtdr === null) warnings.push('OTDR chưa được trả về từ API nguồn (dimension Hoàn thiện đơn hàng và kho vận, evaluate_duration_days=30).');
+  if (currentResponse24h === null) warnings.push('Tỷ lệ phản hồi trong 24 giờ chưa được trả về từ API customer service performance.');
+  const imageCatalog = new Map<string, string>();
+  for (const item of payload(current.ads)?.products || []) {
+    const id = String(item.itemGroupId || item.productId || item.id || '');
+    const imageUrl = String(item.productImageUrl || item.imageUrl || item.product_image_url || item.image_url || '');
+    if (id && imageUrl) imageCatalog.set(id, imageUrl);
+  }
   return {
     period, generatedAt: new Date().toISOString(), dataAvailable: true, warnings,
     core: {
@@ -192,13 +212,13 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
     operations: {
       cancellationRate: metric(scaled(currentOps.cancellationRate, 100), scaled(oldOps.cancellationRate, 100)),
       returnRate: metric(scaled(currentOps.returnRate, 100), scaled(oldOps.returnRate, 100)),
-      fastShippingRate: metric(null, null), quickResponseRate: metric(null, null)
+      fastShippingRate: metric(currentOtdr, previousOtdr), quickResponseRate: metric(currentResponse24h, previousResponse24h)
     },
     funnel: {
       impressions: metric(currentTotal.impressions, oldTotal.impressions), clicks: metric(currentTotal.clicks, oldTotal.clicks),
       skuOrders: metric(currentTotal.skuOrders, oldTotal.skuOrders), ctr: metric(scaled(currentTotal.ctr, 100), scaled(oldTotal.ctr, 100)),
       ctor: metric(scaled(currentTotal.ctor, 100), scaled(oldTotal.ctor, 100))
     },
-    finance, sources: sourceRows(current.products, finance.gmv), products: productRows(current.products, old.products)
+    finance, sources: sourceRows(current.products, finance.gmv), products: productRows(current.products, old.products, imageCatalog)
   };
 }

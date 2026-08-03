@@ -14,16 +14,18 @@
         <span class="brand-mark">A</span>
         <span><strong>REPORT</strong><small>ANLANHFARM</small></span>
       </a>
+      <div class="topbar-actions">
+        <section class="period-toolbar" aria-label="Khoảng thời gian báo cáo">
+          <span class="period-toolbar-label">Bấm để đổi khoảng thời gian xem</span>
+          <button class="period-picker-button" id="periodPickerButton" type="button" aria-haspopup="dialog" aria-expanded="false">
+            <span class="period-calendar" aria-hidden="true">▣</span><span id="periodPickerLabel">Đang tải kỳ báo cáo...</span><span class="period-chevron" aria-hidden="true">⌄</span>
+          </button>
+          <div class="period-popover" id="periodPopover" hidden></div>
+        </section>
+      </div>
     </header>
 
     <main class="page-content">
-      <section class="period-toolbar" aria-label="Khoảng thời gian báo cáo">
-        <span class="period-toolbar-label">Bấm để đổi khoảng thời gian xem</span>
-        <button class="period-picker-button" id="periodPickerButton" type="button" aria-haspopup="dialog" aria-expanded="false">
-          <span class="period-calendar" aria-hidden="true">▣</span><span id="periodPickerLabel">Đang tải kỳ báo cáo...</span><span class="period-chevron" aria-hidden="true">⌄</span>
-        </button>
-        <div class="period-popover" id="periodPopover" hidden></div>
-      </section>
       <section class="report-heading" aria-labelledby="pageTitle">
         <div>
           <p class="eyebrow">BÁO CÁO HIỆU SUẤT</p>
@@ -82,7 +84,6 @@
       <section class="section-block" aria-labelledby="planTitle">
         <div class="section-heading"><div><p class="eyebrow">KẾ HOẠCH</p><h2 id="planTitle">Công việc thực thi</h2></div><span class="section-meta">Tầng 5</span></div>
         <div class="editable-table" id="workTable"></div>
-        <p class="section-description">Mở popup phím <kbd>i</kbd> để thêm hoặc chỉnh sửa công việc.</p>
       </section>
     </main>
   </div>
@@ -108,6 +109,6 @@
     </form>
   </dialog>
 
-  <script src="/app.js?v=20260803-4" defer></script>
+  <script src="/app.js?v=20260803-5" defer></script>
 </body>
 </html>

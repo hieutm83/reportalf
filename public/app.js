@@ -31,7 +31,7 @@
   function formatChange(value) { return value === null || value === undefined ? 'Không có dữ liệu kỳ trước' : `${value >= 0 ? '▲' : '▼'} ${formatNumber(Math.abs(value) * 100, 2)}%`; }
   function trendClass(value) { return value === null || value === undefined ? 'trend-flat' : value >= 0 ? 'trend-up' : 'trend-down'; }
   function valueForMetric(metric, kind) { const value = metric?.value; if (kind === 'money') return formatMoney(value); if (kind === 'percent') return formatPercent(value); return formatNumber(value); }
-  function periodLabel(period) { return period ? `${period.title} · ${formatDate(period.startDate)} - ${formatDate(period.endDate)}` : 'Đang tải kỳ báo cáo...'; }
+  function periodLabel(period) { return period ? period.title : 'Đang tải kỳ báo cáo...'; }
   function makePeriod(kind, anchorDate) {
     const [year, month, day] = String(anchorDate).split('-').map(Number);
     const anchor = new Date(Date.UTC(year, month - 1, day));
@@ -83,7 +83,7 @@
     ].join('');
     $('#operationMetrics').innerHTML = [
       renderMetricCard('Tỷ lệ hủy đơn', snapshot.operations.cancellationRate, 'percent', true), renderMetricCard('Tỷ lệ trả hàng / hoàn tiền', snapshot.operations.returnRate, 'percent', true),
-      renderMetricCard('Tỷ lệ gửi hàng nhanh', snapshot.operations.fastShippingRate, 'percent', true), renderMetricCard('Tỷ lệ phản hồi nhanh', snapshot.operations.quickResponseRate, 'percent', true)
+      renderMetricCard('OTDR', snapshot.operations.fastShippingRate, 'percent', true), renderMetricCard('Tỷ lệ phản hồi trong 24 giờ', snapshot.operations.quickResponseRate, 'percent', true)
     ].join('');
   }
 
@@ -96,8 +96,8 @@
     ];
     $('#funnel').innerHTML = rows.map((item, index) => {
       const rate = item.rate ? `<span>${item.rate}</span><strong>${formatPercent(item.rateMetric?.value)}</strong><small class="${trendClass(item.rateMetric?.change)}">${escapeHtml(formatChange(item.rateMetric?.change))}</small>` : '';
-      const arrow = item.rate ? '<svg viewBox="0 0 56 66" aria-hidden="true"><path d="M5 2 L18 50 L49 50 M43 44 L49 50 L43 56"></path></svg>' : '';
-      return `<div class="dashboard-funnel-rate">${rate}</div><div class="dashboard-funnel-arrow-slot${item.rate === 'CTOR' ? ' ctor' : ''}">${arrow}</div><div class="dashboard-funnel-step dashboard-funnel-step-${index + 1}"><span>${item.label}</span><div class="dashboard-funnel-value"><strong>${valueForMetric(item.metric, 'number')}</strong><small class="${trendClass(item.metric?.change)}">${escapeHtml(formatChange(item.metric?.change))}</small></div></div>`;
+      const arrow = item.rate ? '<svg class="product-funnel-arrow-svg" viewBox="0 0 56 66" aria-hidden="true"><path d="M5 2 L18 50 L49 50 M43 44 L49 50 L43 56"></path></svg>' : '';
+      return `<div class="product-funnel-rate">${rate}</div><div class="product-funnel-arrow-slot${item.rate === 'CTOR' ? ' ctor' : ''}">${arrow}</div><div class="product-funnel-step product-funnel-step-${index + 1}"><span>${item.label}</span><div class="product-funnel-value"><strong>${valueForMetric(item.metric, 'number')}</strong><small class="${trendClass(item.metric?.change)}">${escapeHtml(formatChange(item.metric?.change))}</small></div></div>`;
     }).join('');
   }
 

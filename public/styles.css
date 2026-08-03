@@ -35,6 +35,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .brand strong { font-size: 13px; }
 .brand small { margin-top: 4px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .17em; }
 .topbar-actions, .heading-actions { display: flex; align-items: center; gap: 10px; }
+.topbar .period-toolbar { margin: 0; justify-items: end; gap: 3px; }
+.topbar .period-toolbar-label { font-size: 9px; }
+.topbar .period-popover { right: 0; }
 .sync-state { color: var(--muted); font-size: 12px; display: inline-flex; align-items: center; gap: 7px; }
 .state-dot { width: 7px; height: 7px; display: inline-block; border-radius: 50%; background: var(--muted); }
 .sync-state.is-ready .state-dot { background: var(--positive); }
@@ -104,23 +107,23 @@ h2 { margin-bottom: 0; font-size: 17px; letter-spacing: -.015em; }
 .finance-footer strong { color: var(--ink); }
 
 /* Match the source dashboard's product-analysis funnel geometry. */
-.funnel { display: grid; grid-template-columns: 120px 58px minmax(320px, 560px); justify-content: center; gap: 10px 0; align-items: center; padding: 12px 0 6px; }
-.dashboard-funnel-rate { min-height: 60px; color: var(--muted); font-size: 12px; text-align: right; padding-right: 8px; }
-.dashboard-funnel-rate strong { display: block; color: var(--ink); font-size: 18px; }
-.dashboard-funnel-rate small, .dashboard-funnel-value small { display: block; margin-top: 3px; font-size: 10px; font-weight: 700; }
-.dashboard-funnel-arrow-slot { position: relative; align-self: stretch; min-height: 60px; color: #0ea5e9; }
-.dashboard-funnel-arrow-slot.ctor { color: #ef4444; }
-.dashboard-funnel-arrow-slot svg { position: absolute; left: 0; top: -32px; width: 56px; height: 66px; overflow: visible; color: inherit; }
-.dashboard-funnel-arrow-slot path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.dashboard-funnel-step { display: flex; align-items: center; justify-content: space-between; min-height: 60px; padding: 12px 48px; color: #fff; font-weight: 700; background: #67c9c6; clip-path: polygon(4% 0, 96% 0, 90% 100%, 10% 100%); }
-.dashboard-funnel-step-2 { width: 88%; justify-self: center; background: #35b8b5; }
-.dashboard-funnel-step-3 { width: 76%; justify-self: center; background: #0ea5a4; }
-.dashboard-funnel-step > span { font-size: 12px; }
-.dashboard-funnel-value { text-align: right; }
-.dashboard-funnel-value strong { font-size: 18px; font-variant-numeric: tabular-nums; }
-.dashboard-funnel-value small { color: rgba(255,255,255,.9); }
-.dashboard-funnel-value small.trend-up { color: #bbf7d0; }
-.dashboard-funnel-value small.trend-down { color: #fecaca; }
+.funnel { display: grid; grid-template-columns: 120px 58px minmax(0, 560px); width: 100%; max-width: 738px; justify-content: center; gap: 10px 0; align-items: center; justify-items: stretch; padding: 12px 0 6px; }
+.product-funnel-rate { color: var(--muted); font-size: 12px; text-align: right; padding-right: 8px; }
+.product-funnel-rate strong { display: block; color: var(--ink); font-size: 18px; }
+.product-funnel-rate small, .product-funnel-value small { display: block; margin-top: 3px; font-size: 10px; font-weight: 700; }
+.product-funnel-arrow-slot { position: relative; align-self: stretch; min-height: 60px; color: #0ea5e9; }
+.product-funnel-arrow-slot.ctor { color: #ef4444; }
+.product-funnel-arrow-svg { position: absolute; left: 0; top: -32px; width: 56px; height: 66px; overflow: visible; color: inherit; }
+.product-funnel-arrow-svg path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.product-funnel-step { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 60px; padding: 12px 48px; color: #fff; font-weight: 700; background: #67c9c6; clip-path: polygon(4% 0, 96% 0, 90% 100%, 10% 100%); }
+.product-funnel-step-2 { width: 88%; justify-self: center; background: #35b8b5; }
+.product-funnel-step-3 { width: 76%; justify-self: center; background: #0ea5a4; }
+.product-funnel-step > span { font-size: 12px; }
+.product-funnel-value { text-align: right; }
+.product-funnel-value strong { font-size: 18px; font-variant-numeric: tabular-nums; }
+.product-funnel-value small { color: rgba(255,255,255,.9); }
+.product-funnel-value small.trend-up { color: #bbf7d0; }
+.product-funnel-value small.trend-down { color: #fecaca; }
 .finance-layout { grid-template-columns: minmax(220px, 1fr) minmax(250px, 1fr); gap: 24px; }
 .donut { width: 220px; height: 220px; }
 .donut::after { inset: 51px; }
@@ -208,5 +211,5 @@ kbd { padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; backg
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @keyframes pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
-@media (max-width: 900px) { .metric-grid-core, .metric-grid-operations { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split-grid { grid-template-columns: 1fr; } .funnel { grid-template-columns: 100px 48px minmax(260px, 1fr); } .dashboard-funnel-step { padding: 12px 30px; } }
-@media (max-width: 640px) { .topbar { height: 64px; padding: 0 17px; } .page-content { width: min(100% - 28px, 1400px); padding-top: 22px; } .period-toolbar { margin-bottom: 28px; } .period-picker-button { min-width: min(100%, 300px); } .report-heading { display: block; } .metric-grid-core, .metric-grid-operations { grid-template-columns: 1fr 1fr; gap: 9px; } .metric-card { padding: 15px; min-height: 112px; } .metric-value { font-size: 22px; } .panel { padding: 18px 15px; } .finance-layout { grid-template-columns: 1fr; justify-items: center; gap: 18px; } .finance-legend { width: 100%; } .donut { width: 190px; height: 190px; } .donut::after { inset: 44px; } .funnel { grid-template-columns: 70px 38px minmax(230px, 1fr); gap: 6px 0; overflow-x: auto; justify-content: start; } .dashboard-funnel-step { padding: 10px 22px; } .dashboard-funnel-step > span { font-size: 11px; } .dashboard-funnel-value strong { font-size: 16px; } .choice-row { grid-template-columns: 1fr; } .dialog-controls { grid-template-columns: 1fr; } .section-block { margin: 40px 0; } }
+@media (max-width: 900px) { .metric-grid-core, .metric-grid-operations { grid-template-columns: repeat(2, minmax(0, 1fr)); } .split-grid { grid-template-columns: 1fr; } .funnel { grid-template-columns: 100px 48px minmax(0, 1fr); } .product-funnel-step { padding: 12px 30px; } }
+@media (max-width: 640px) { .topbar { height: 64px; padding: 0 17px; } .topbar-actions { min-width: 0; } .topbar .period-toolbar { justify-items: end; } .topbar .period-toolbar-label { display: none; } .page-content { width: min(100% - 28px, 1400px); padding-top: 22px; } .period-picker-button { min-width: min(100%, 250px); padding: 10px 12px; } .period-popover { right: 0; } .report-heading { display: block; } .metric-grid-core, .metric-grid-operations { grid-template-columns: 1fr 1fr; gap: 9px; } .metric-card { padding: 15px; min-height: 112px; } .metric-value { font-size: 22px; } .panel { padding: 18px 15px; } .finance-layout { grid-template-columns: 1fr; justify-items: center; gap: 18px; } .finance-legend { width: 100%; } .donut { width: 190px; height: 190px; } .donut::after { inset: 44px; } .funnel { grid-template-columns: 70px 38px minmax(230px, 1fr); gap: 6px 0; overflow-x: auto; justify-content: start; } .product-funnel-step { padding: 10px 22px; } .product-funnel-step > span { font-size: 11px; } .product-funnel-value strong { font-size: 16px; } .choice-row { grid-template-columns: 1fr; } .dialog-controls { grid-template-columns: 1fr; } .section-block { margin: 40px 0; } }
