@@ -61,7 +61,9 @@ async function sourceRequest<T>(source: { base: string; cookie: string }, path: 
     headers: { Cookie: source.cookie, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
     body: body === undefined ? undefined : JSON.stringify(body)
   });
-  const data = await response.json<any>().catch(() => ({}));
+  const raw = await response.arrayBuffer();
+  const text = new TextDecoder('utf-8').decode(raw);
+  const data = (() => { try { return JSON.parse(text || '{}'); } catch { return {}; } })();
   if (!response.ok || data.ok !== true) throw new Error(data.error || `Nguồn dữ liệu trả về ${response.status}.`);
   return data.data as T;
 }
