@@ -26,6 +26,10 @@
     if (abs >= 1_000) return `${formatNumber(amount / 1_000, 2)}K`;
     return `${formatNumber(amount)}đ`;
   }
+  function formatMoneyFull(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return 'Chưa có';
+    return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(Number(value))}đ`;
+  }
   function formatPercent(value) { return value === null || value === undefined ? 'Chưa có' : `${formatNumber(value, 2)}%`; }
   function formatDate(value) { if (!value) return ''; const [year, month, day] = value.split('-'); return `${day}/${month}/${year}`; }
   function formatChange(value) { return value === null || value === undefined ? 'Không có dữ liệu kỳ trước' : `${value >= 0 ? '▲' : '▼'} ${formatNumber(Math.abs(value) * 100, 2)}%`; }
@@ -105,11 +109,44 @@
     const finance = state.snapshot?.finance || emptySnapshot(state.period).finance;
     const items = [['Tổng phí & thuế', finance.feeTax], ['Hoa hồng KOC / Affiliate', finance.affiliate], ['Chi phí Ads', finance.ads], ['Hoàn tiền', finance.refunds], ['Còn lại (Lợi nhuận gộp ước tính)', finance.grossProfit]];
     const total = items.reduce((sum, item) => sum + Math.max(0, Number(item[1]) || 0), 0) || 1;
-    let cursor = 0;
-    const stops = items.map(([label, value], index) => { const start = cursor; cursor += (Math.max(0, Number(value) || 0) / total) * 100; return `${colors[index]} ${start}% ${cursor}%`; });
-    $('#financeDonut').style.background = `conic-gradient(${stops.join(', ')})`;
-    $('#financeLegend').innerHTML = items.map(([label, value], index) => `<div class="legend-row"><i class="legend-swatch" style="background:${colors[index] || '#22c55e'}"></i><span>${escapeHtml(label)}<small>${formatPercent(total > 1 ? (Number(value) || 0) / total * 100 : 0)} cơ cấu</small></span><strong>${formatMoney(value)}</strong></div>`).join('');
-    $('#financeFooter').innerHTML = `<span>Lợi nhuận gộp ước tính <strong>${formatMoney(finance.grossProfit)}</strong></span><span>Tổng chi phí / GMV <strong>${formatPercent(finance.totalCostRate === null ? null : finance.totalCostRate * 100)}</strong></span>`;
+    const donut = $('#financeDonut');
+    const radius = 84;
+    const circumference = 2 * Math.PI * radius;
+    let offset = 0;
+    const segments = items.map(([label, value], index) => {
+      const amount = Math.max(0, Number(value) || 0);
+      const share = amount / total * 100;
+      const dash = circumference * share / 100;
+      const displayLabel = repairText(label);
+      const detail = `${formatMoneyFull(value)} (${formatPercent(share)} cơ cấu)`;
+      const segment = `<circle class="finance-segment" data-finance-index="${index}" cx="100" cy="100" r="${radius}" stroke="${colors[index] || '#22c55e'}" stroke-dasharray="${dash} ${Math.max(0, circumference - dash)}" stroke-dashoffset="${-offset}" tabindex="0"><title>${escapeHtml(displayLabel)}: ${escapeHtml(detail)}</title></circle>`;
+      offset += dash;
+      return segment;
+    }).join('');
+    donut.innerHTML = `<svg class="donut-svg" viewBox="0 0 200 200" role="img" aria-label="Cơ cấu chi phí">${segments}</svg><div class="finance-tooltip" hidden></div>`;
+    const tooltip = donut.querySelector('.finance-tooltip');
+    const showTooltip = (event, index) => {
+      const [label, value] = items[index];
+      const amount = Math.max(0, Number(value) || 0);
+      const share = amount / total * 100;
+      tooltip.innerHTML = `<strong>${escapeHtml(repairText(label))}</strong><span>${escapeHtml(formatMoneyFull(value))} · ${escapeHtml(formatPercent(share))}</span>`;
+      tooltip.hidden = false;
+      if (event?.clientX !== undefined) {
+        const rect = donut.getBoundingClientRect();
+        const x = Math.max(12, Math.min(rect.width - 12, event.clientX - rect.left));
+        const y = Math.max(12, event.clientY - rect.top - 10);
+        tooltip.style.left = `${x}px`; tooltip.style.top = `${y}px`;
+      }
+    };
+    const hideTooltip = () => { tooltip.hidden = true; };
+    donut.querySelectorAll('.finance-segment').forEach((segment) => {
+      const index = Number(segment.dataset.financeIndex);
+      segment.addEventListener('mouseenter', (event) => showTooltip(event, index));
+      segment.addEventListener('mousemove', (event) => showTooltip(event, index));
+      segment.addEventListener('mouseleave', hideTooltip);
+      segment.addEventListener('focus', () => showTooltip(null, index));
+      segment.addEventListener('blur', hideTooltip);
+    });
   }
 
   function changeMarkup(value) { return `<small class="change-note ${trendClass(value)}">${escapeHtml(formatChange(value))}</small>`; }
