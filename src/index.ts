@@ -1,7 +1,7 @@
 import type { Env, ReportKind, ReportSnapshot } from './types';
 import { errorMessage, json, readJson } from './json';
 import { latestMonthAnchor, latestWeekAnchor, parseDate, reportPeriod } from './periods';
-import { getReport, listReports, saveReport } from './supabase';
+import { getReport, getReportForPeriod, listReports, saveReport } from './supabase';
 import { loadSourceReport } from './source-dashboard';
 
 function isKind(value: unknown): value is ReportKind {
@@ -16,7 +16,7 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
   if (request.method === 'GET' && url.pathname === '/api/default-periods') {
     const weekAnchor = latestWeekAnchor(env.TIMEZONE);
     const monthAnchor = latestMonthAnchor(env.TIMEZONE);
-    return json({ week: reportPeriod('week', weekAnchor), month: reportPeriod('month', monthAnchor) });
+    return json({ ok: true, data: { week: reportPeriod('week', weekAnchor), month: reportPeriod('month', monthAnchor) } });
   }
   if (request.method === 'GET' && url.pathname === '/api/reports') {
     const kind = url.searchParams.get('kind');
@@ -29,10 +29,16 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
     return record ? json({ ok: true, data: record }) : json({ ok: false, error: 'Không tìm thấy báo cáo.' }, 404);
   }
   if (request.method === 'POST' && url.pathname === '/api/source-report') {
-    const input = await readJson<{ kind?: string; anchorDate?: string }>(request);
+    const input = await readJson<{ kind?: string; anchorDate?: string; forceRefresh?: boolean }>(request);
     if (!isKind(input.kind)) return json({ ok: false, error: 'Loại báo cáo không hợp lệ.' }, 400);
     const period = reportPeriod(input.kind, parseDate(input.anchorDate));
-    return json({ ok: true, data: await loadSourceReport(env, period) });
+    const cached = await getReportForPeriod(env, period.kind, period.startDate);
+    if (cached && cached.dataAvailable && input.forceRefresh !== true) return json({ ok: true, data: cached });
+    const snapshot = await loadSourceReport(env, period);
+    const saved = await saveReport(env, snapshot, {
+      review: cached?.review || [], evaluations: cached?.evaluations || [], workItems: cached?.workItems || []
+    });
+    return json({ ok: true, data: saved });
   }
   if (request.method === 'POST' && url.pathname === '/api/reports') {
     const input = await readJson<{ snapshot?: ReportSnapshot; review?: any[]; evaluations?: any[]; workItems?: any[] }>(request);

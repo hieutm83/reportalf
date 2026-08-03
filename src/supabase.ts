@@ -1,4 +1,4 @@
-import type { Env, ReportRecord, ReportSnapshot, WorkItem, ReviewItem } from './types';
+import type { Env, ReportKind, ReportRecord, ReportSnapshot, WorkItem, ReviewItem } from './types';
 
 function supabaseConfig(env: Env): { base: string; key: string } {
   const base = String(env.SUPABASE_URL || '').replace(/\/$/, '');
@@ -56,6 +56,12 @@ export async function listReports(env: Env, kind?: string): Promise<ReportRecord
 
 export async function getReport(env: Env, id: string): Promise<ReportRecord | null> {
   const rows = await request<SupabaseReportRow[]>(env, `reports?select=*&id=eq.${encodeURIComponent(id)}&limit=1`);
+  return rows?.[0] ? toRecord(rows[0]) : null;
+}
+
+export async function getReportForPeriod(env: Env, kind: ReportKind, periodStart: string): Promise<ReportRecord | null> {
+  const rows = await request<SupabaseReportRow[]>(env,
+    `reports?select=*&kind=eq.${kind}&period_start=eq.${encodeURIComponent(periodStart)}&limit=1`);
   return rows?.[0] ? toRecord(rows[0]) : null;
 }
 
