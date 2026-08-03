@@ -10,7 +10,8 @@ function isKind(value: unknown): value is ReportKind {
 
 async function api(request: Request, env: Env, url: URL): Promise<Response> {
   if (request.method === 'GET' && url.pathname === '/api/health') {
-    return json({ ok: true, service: 'report-alf', supabaseConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) });
+    return json({ ok: true, service: 'report-alf', supabaseConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY),
+      supabaseUrlConfigured: Boolean(env.SUPABASE_URL), supabaseKeyConfigured: Boolean(env.SUPABASE_SERVICE_ROLE_KEY) });
   }
   if (request.method === 'GET' && url.pathname === '/api/default-periods') {
     const weekAnchor = latestWeekAnchor(env.TIMEZONE);
