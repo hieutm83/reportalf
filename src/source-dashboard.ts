@@ -30,6 +30,10 @@ function productMetrics(product: any): any {
   return product?.total || {};
 }
 
+function payload(value: any): any {
+  return value?.data ?? value ?? {};
+}
+
 function sourceCookie(response: Response): string {
   const setCookie = response.headers.get('set-cookie') || '';
   const match = setCookie.match(/([^=;,]+=[^;,]+)/);
@@ -105,8 +109,10 @@ function sourceRows(current: any, totalGmv: number): SourceRow[] {
 }
 
 function productRows(current: any, previous: any): ProductRow[] {
-  const previousMap = new Map<string, any>((previous?.current?.products || []).map((item: any) => [String(item.id), productMetrics(item)]));
-  return (current?.current?.products || []).map((item: any) => {
+  const currentPayload = payload(current);
+  const previousPayload = payload(previous);
+  const previousMap = new Map<string, any>((previousPayload?.current?.products || previousPayload?.products || []).map((item: any) => [String(item.id), productMetrics(item)]));
+  return (currentPayload?.current?.products || currentPayload?.products || []).map((item: any) => {
     const value = productMetrics(item);
     const old = previousMap.get(String(item.id)) || {};
     const gmv = number(value.gmv), orders = number(value.skuOrders || value.orders), impressions = number(value.impressions), clicks = number(value.clicks);
@@ -122,14 +128,14 @@ function productRows(current: any, previous: any): ProductRow[] {
 }
 
 function financeBlock(current: any): ReportSnapshot['finance'] {
-  const summary = current?.summary || {};
-  const combined = current?.combined || {};
+  const source = payload(current);
+  const summary = source?.summary || source?.current?.summary || {};
   const feeTax = Math.abs(number(summary.feeTax ?? summary.feeTaxAmount));
   const affiliate = Math.abs(number(summary.affiliate));
   const refunds = Math.abs(number(summary.refunds));
-  const ads = Math.abs(number(current?.ads?.cost));
+  const ads = Math.abs(number(summary.adsCost ?? source?.ads?.cost));
   const grossProfit = number(summary.grossProfit);
-  const gmv = number(summary.sellerSubtotal || current?.totalGmv);
+  const gmv = number(summary.sellerSubtotal || source?.totalGmv);
   const totalCost = feeTax + affiliate + refunds + ads;
   return { feeTax, affiliate, ads, refunds, grossProfit, gmv,
     totalCostRate: gmv ? totalCost / gmv : null };
@@ -144,15 +150,19 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
     bundle(source, state, period.startDate, period.endDate),
     bundle(source, state, previous.startDate, previous.endDate)
   ]);
-  const currentRevenue = current.revenue?.totals || {};
-  const oldRevenue = old.revenue?.totals || {};
-  const currentAds = current.ads?.totals || {};
-  const oldAds = old.ads?.totals || {};
-  const currentOps = current.operations?.totals || {};
-  const oldOps = old.operations?.totals || {};
-  const currentTotal = current.products?.current?.total || {};
-  const oldTotal = old.products?.current?.total || {};
+  const currentRevenue = payload(current.revenue)?.totals || {};
+  const oldRevenue = payload(old.revenue)?.totals || {};
+  const currentAds = payload(current.ads)?.totals || {};
+  const oldAds = payload(old.ads)?.totals || {};
+  const currentOps = payload(current.operations)?.totals || {};
+  const oldOps = payload(old.operations)?.totals || {};
+  const currentProductPayload = payload(current.products);
+  const oldProductPayload = payload(old.products);
+  const currentTotal = currentProductPayload?.current?.total || currentProductPayload?.total || {};
+  const oldTotal = oldProductPayload?.current?.total || oldProductPayload?.total || {};
   const finance = financeBlock(current.finance);
+  const adsCost = nullable(currentAds.cost) ?? (finance.gmv > 0 ? finance.ads : null);
+  const previousAdsCost = nullable(oldAds.cost) ?? null;
   const warnings = [
     'Tỷ lệ gửi hàng nhanh và tỷ lệ phản hồi nhanh chưa có API trong dashboard nguồn.'
   ];
@@ -162,7 +172,10 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
       gmv: metric(currentRevenue.grossRevenue, oldRevenue.grossRevenue),
       orders: metric(currentRevenue.orders, oldRevenue.orders),
       aov: metric(currentRevenue.aov, oldRevenue.aov),
-      adsCostPerOrder: metric(currentAds.costPerOrder, oldAds.costPerOrder)
+      adsCostPerOrder: metric(
+        currentAds.costPerOrder ?? (adsCost !== null && nullable(currentRevenue.orders) ? adsCost / Math.max(1, number(currentRevenue.orders)) : null),
+        oldAds.costPerOrder ?? (previousAdsCost !== null && nullable(oldRevenue.orders) ? previousAdsCost / Math.max(1, number(oldRevenue.orders)) : null)
+      )
     },
     operations: {
       cancellationRate: metric(number(currentOps.cancellationRate) * 100, number(oldOps.cancellationRate) * 100),
