@@ -1,0 +1,17 @@
+name = "report-alf"
+main = "src/index.ts"
+compatibility_date = "2026-08-03"
+workers_dev = true
+routes = [
+  { pattern = "anlanh-report.indevs.in", custom_domain = true }
+]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+
+[vars]
+SOURCE_DASHBOARD_URL = "https://anlanhfarm.indevs.in"
+TIMEZONE = "Asia/Bangkok"
+SUPABASE_URL = "https://adtjorcpqpmqvhostkbg.supabase.co"

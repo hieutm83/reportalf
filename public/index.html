@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f7fb">
+  <title>Report ALF | Báo cáo vận hành</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Report ALF">
+        <span class="brand-mark">A</span>
+        <span><strong>REPORT</strong><small>ANLANHFARM</small></span>
+      </a>
+      <div class="topbar-actions">
+        <span class="sync-state" id="syncState"><span class="state-dot"></span> Chưa đồng bộ</span>
+        <button class="button button-quiet" id="historyButton" type="button">Báo cáo đã lưu</button>
+        <button class="icon-button" id="settingsButton" type="button" aria-label="Mở cài đặt báo cáo">i</button>
+      </div>
+    </header>
+
+    <main class="page-content">
+      <section class="report-heading" aria-labelledby="pageTitle">
+        <div>
+          <p class="eyebrow">BÁO CÁO HIỆU SUẤT</p>
+          <h1 id="pageTitle">Báo cáo tuần</h1>
+          <p class="period-line" id="periodLine">Đang tải kỳ báo cáo...</p>
+        </div>
+        <div class="heading-actions">
+          <button class="button button-secondary" id="refreshButton" type="button">Lấy số liệu</button>
+          <button class="button button-primary" id="saveButton" type="button">Lưu báo cáo</button>
+        </div>
+      </section>
+
+      <div class="notice" id="notice" role="status" hidden></div>
+
+      <section class="metric-section" aria-labelledby="coreTitle">
+        <div class="section-heading"><h2 id="coreTitle">Kinh doanh cốt lõi</h2><span class="section-meta">Tầng 1</span></div>
+        <div class="metric-grid metric-grid-core" id="coreMetrics"></div>
+      </section>
+
+      <section class="metric-section" aria-labelledby="operationsTitle">
+        <div class="section-heading"><h2 id="operationsTitle">Vận hành và hệ thống</h2><span class="section-meta">Theo kỳ báo cáo</span></div>
+        <div class="metric-grid metric-grid-operations" id="operationMetrics"></div>
+      </section>
+
+      <section class="split-grid" aria-label="Phễu traffic và tài chính">
+        <article class="panel funnel-panel">
+          <div class="section-heading"><h2>Phễu chuyển đổi traffic</h2><span class="section-meta">Tầng 2</span></div>
+          <div class="funnel" id="funnel"></div>
+        </article>
+        <article class="panel finance-panel">
+          <div class="section-heading"><h2>Tổng quan tài chính và cơ cấu GMV</h2><span class="section-meta">Tầng 2</span></div>
+          <div class="finance-layout">
+            <div class="donut" id="financeDonut" aria-label="Cơ cấu chi phí"></div>
+            <div class="finance-legend" id="financeLegend"></div>
+          </div>
+          <div class="finance-footer" id="financeFooter"></div>
+        </article>
+      </section>
+
+      <section class="panel table-panel" aria-labelledby="sourcesTitle">
+        <div class="section-heading"><div><h2 id="sourcesTitle">Nguồn traffic và nội dung</h2><p class="section-description">So sánh đóng góp GMV và chất lượng traffic theo nguồn.</p></div><span class="section-meta">Tầng 3</span></div>
+        <div class="table-scroll"><table><thead><tr><th>Nguồn</th><th>GMV</th><th>Đóng góp</th><th>Hiển thị</th><th>Lượt nhấp</th><th>CTR</th><th>CTOR</th></tr></thead><tbody id="sourcesTable"></tbody></table></div>
+      </section>
+
+      <section class="panel table-panel" aria-labelledby="productsTitle">
+        <div class="section-heading"><div><h2 id="productsTitle">Top sản phẩm</h2><p class="section-description">Các sản phẩm có GMV cao nhất trong kỳ.</p></div><span class="section-meta">Product performance</span></div>
+        <div class="table-scroll"><table><thead><tr><th>Sản phẩm</th><th>GMV</th><th>Đơn</th><th>Hiển thị</th><th>Nhấp</th><th>CTR</th><th>CTOR</th></tr></thead><tbody id="productsTable"></tbody></table></div>
+      </section>
+
+      <section class="section-block" aria-labelledby="reviewTitle">
+        <div class="section-heading"><div><p class="eyebrow">ĐÁNH GIÁ</p><h2 id="reviewTitle">Review kế hoạch kỳ trước</h2></div><span class="section-meta">Tầng 4.1</span></div>
+        <div class="editable-table" id="reviewTable"></div>
+      </section>
+
+      <section class="section-block" aria-labelledby="evaluationTitle">
+        <div class="section-heading"><h2 id="evaluationTitle">Đánh giá chỉ số và hành động tối ưu</h2><span class="section-meta">Tầng 4.2</span></div>
+        <div class="editable-table" id="evaluationTable"></div>
+      </section>
+
+      <section class="section-block" aria-labelledby="planTitle">
+        <div class="section-heading"><div><p class="eyebrow">KẾ HOẠCH</p><h2 id="planTitle">Công việc thực thi</h2></div><span class="section-meta">Tầng 5</span></div>
+        <div class="editable-table" id="workTable"></div>
+        <button class="button button-secondary add-row" id="addWorkButton" type="button">Thêm công việc</button>
+      </section>
+    </main>
+  </div>
+
+  <aside class="history-drawer" id="historyDrawer" aria-hidden="true">
+    <div class="drawer-head"><div><p class="eyebrow">LƯU TRỮ</p><h2>Báo cáo đã qua</h2></div><button class="icon-button" id="closeHistoryButton" type="button" aria-label="Đóng">×</button></div>
+    <div class="history-tabs"><button class="history-tab is-active" data-history-kind="week" type="button">Tuần</button><button class="history-tab" data-history-kind="month" type="button">Tháng</button></div>
+    <div id="historyList" class="history-list"></div>
+  </aside>
+  <div class="overlay" id="overlay" hidden></div>
+
+  <dialog class="settings-dialog" id="settingsDialog">
+    <form method="dialog" class="dialog-card" id="settingsForm">
+      <div class="dialog-head"><div><p class="eyebrow">CÀI ĐẶT BÁO CÁO</p><h2>Chọn kỳ xem</h2></div><button class="icon-button" value="cancel" aria-label="Đóng">×</button></div>
+      <div class="choice-row"><label class="choice"><input type="radio" name="reportKind" value="week" checked><span><strong>Báo cáo tuần</strong><small>Thứ 7 tuần trước đến thứ 6 tuần này</small></span></label><label class="choice"><input type="radio" name="reportKind" value="month"><span><strong>Báo cáo tháng</strong><small>Luôn chốt vào ngày 1 hàng tháng</small></span></label></div>
+      <label class="field"><span>Ngày chốt báo cáo</span><input id="anchorDate" type="date" required><small id="anchorHelp">Chọn thứ 7 làm mốc chốt tuần.</small></label>
+      <div class="period-preview" id="periodPreview"></div>
+      <div class="dialog-actions"><button class="button button-quiet" value="cancel">Hủy</button><button class="button button-primary" id="applySettingsButton" value="default">Áp dụng</button></div>
+    </form>
+  </dialog>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
