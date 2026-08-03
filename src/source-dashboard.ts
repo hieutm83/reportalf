@@ -166,6 +166,8 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
   const adsCost = reportedAdsCost && reportedAdsCost > 0 ? reportedAdsCost : (finance.gmv > 0 ? finance.ads : null);
   const reportedPreviousAdsCost = nullable(oldAds.cost);
   const previousAdsCost = reportedPreviousAdsCost && reportedPreviousAdsCost > 0 ? reportedPreviousAdsCost : (previousFinance.gmv > 0 ? previousFinance.ads : null);
+  const adsCostPerOrder = nullable(currentAds.costPerOrder);
+  const previousAdsCostPerOrder = nullable(oldAds.costPerOrder);
   const warnings = [
     'Tỷ lệ gửi hàng nhanh và tỷ lệ phản hồi nhanh chưa có API trong dashboard nguồn.'
   ];
@@ -176,8 +178,8 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
       orders: metric(currentRevenue.orders, oldRevenue.orders),
       aov: metric(currentRevenue.aov, oldRevenue.aov),
       adsCostPerOrder: metric(
-        currentAds.costPerOrder ?? (adsCost !== null && nullable(currentRevenue.orders) ? adsCost / Math.max(1, number(currentRevenue.orders)) : null),
-        oldAds.costPerOrder ?? (previousAdsCost !== null && nullable(oldRevenue.orders) ? previousAdsCost / Math.max(1, number(oldRevenue.orders)) : null)
+        adsCostPerOrder && adsCostPerOrder > 0 ? adsCostPerOrder : (adsCost !== null && nullable(currentRevenue.orders) ? adsCost / Math.max(1, number(currentRevenue.orders)) : null),
+        previousAdsCostPerOrder && previousAdsCostPerOrder > 0 ? previousAdsCostPerOrder : (previousAdsCost !== null && nullable(oldRevenue.orders) ? previousAdsCost / Math.max(1, number(oldRevenue.orders)) : null)
       )
     },
     operations: {
