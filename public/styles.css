@@ -1,23 +1,19 @@
 :root {
   color-scheme: light;
-  --page: #f4f7fb;
+  --page: #f8fafc;
   --surface: #ffffff;
-  --surface-soft: #eef3fa;
-  --line: #dce4ef;
-  --ink: #15243b;
-  --muted: #697990;
-  --accent: #2f6df6;
-  --accent-deep: #1949bd;
-  --positive: #16835b;
-  --negative: #d44b50;
-  --warning: #a96a18;
-  --radius: 14px;
-  --shadow: 0 12px 32px rgba(32, 58, 98, .08);
-  font-family: Arial, "Helvetica Neue", sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root { --page: #111722; --surface: #192231; --surface-soft: #202c3e; --line: #30405a; --ink: #f0f4fa; --muted: #a9b6c8; --shadow: 0 12px 32px rgba(0, 0, 0, .2); }
+  --surface-soft: #f1f5f9;
+  --line: #e2e8f0;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --accent-deep: #1d4ed8;
+  --positive: #059669;
+  --negative: #dc2626;
+  --warning: #d97706;
+  --radius: 12px;
+  --shadow: 0 8px 24px rgba(15, 23, 42, .06);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -66,23 +62,31 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .report-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 28px; }
 .eyebrow { margin: 0 0 8px; color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .18em; }
 h1, h2, p { margin-top: 0; }
-h1 { margin-bottom: 6px; font-size: clamp(30px, 4vw, 48px); line-height: 1.05; letter-spacing: -.045em; }
+h1 { margin-bottom: 6px; font-size: clamp(30px, 3.3vw, 40px); line-height: 1.05; letter-spacing: -.03em; }
 h2 { margin-bottom: 0; font-size: 17px; letter-spacing: -.015em; }
 .period-line { color: var(--muted); margin: 0; font-size: 14px; }
 .section-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; margin-bottom: 16px; }
-.section-meta { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .section-description { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
 .metric-section { margin: 28px 0 42px; }
 .metric-grid { display: grid; gap: 13px; }
 .metric-grid-core { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .metric-grid-operations { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.metric-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 21px; box-shadow: var(--shadow); min-height: 125px; transition: transform .22s ease, border-color .22s ease; }
+.metric-card { --metric-color: var(--accent); background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--metric-color); border-radius: var(--radius); padding: 20px 21px; box-shadow: var(--shadow); min-height: 116px; transition: transform .22s ease, border-color .22s ease; }
 .metric-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
-.metric-label { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.metric-value { display: block; margin: 13px 0 9px; color: var(--ink); font-size: clamp(22px, 2.4vw, 31px); line-height: 1; letter-spacing: -.04em; font-weight: 750; }
+.metric-label { display: block; margin-bottom: 12px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+.metric-value { display: block; margin: 0 0 9px; color: var(--metric-color); font-size: clamp(22px, 2.4vw, 28px); line-height: 1.15; letter-spacing: -.02em; font-weight: 800; font-variant-numeric: tabular-nums; }
 .metric-card.operation .metric-value { font-size: clamp(20px, 2.1vw, 27px); }
 .metric-trend { min-height: 17px; color: var(--muted); font-size: 11px; }
 .trend-up { color: var(--positive); } .trend-down { color: var(--negative); } .trend-flat { color: var(--muted); }
+
+.metric-grid-core .metric-card:nth-child(1) { --metric-color: #0f766e; }
+.metric-grid-core .metric-card:nth-child(2) { --metric-color: #059669; }
+.metric-grid-core .metric-card:nth-child(3) { --metric-color: #d97706; }
+.metric-grid-core .metric-card:nth-child(4) { --metric-color: #2563eb; }
+.metric-grid-operations .metric-card:nth-child(1) { --metric-color: #dc2626; }
+.metric-grid-operations .metric-card:nth-child(2) { --metric-color: #d97706; }
+.metric-grid-operations .metric-card:nth-child(3) { --metric-color: #059669; }
+.metric-grid-operations .metric-card:nth-child(4) { --metric-color: #2563eb; }
 
 .split-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 44px; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 25px; }
@@ -98,7 +102,7 @@ h2 { margin-bottom: 0; font-size: 17px; letter-spacing: -.015em; }
 .finance-layout { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: 26px; min-height: 225px; }
 .donut { width: 166px; height: 166px; border-radius: 50%; background: conic-gradient(var(--accent) 0 25%, #4ea9a1 25% 55%, #e5a943 55% 80%, #d98695 80% 100%); position: relative; }
 .donut::after { content: ""; position: absolute; inset: 39px; background: var(--surface); border-radius: 50%; }
-.donut::before { content: "CƠ CẤU"; position: absolute; z-index: 1; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .1em; }
+.donut::before { content: "CƠ CẤU"; position: absolute; z-index: 1; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; }
 .finance-legend { display: grid; gap: 11px; }
 .legend-row { display: grid; grid-template-columns: 10px 1fr auto; gap: 9px; align-items: center; font-size: 12px; }
 .legend-swatch { width: 8px; height: 8px; border-radius: 50%; }
@@ -127,6 +131,7 @@ h2 { margin-bottom: 0; font-size: 17px; letter-spacing: -.015em; }
 .finance-layout { grid-template-columns: minmax(220px, 1fr) minmax(250px, 1fr); gap: 24px; }
 .donut { width: 220px; height: 220px; }
 .donut::after { inset: 51px; }
+.donut { box-shadow: inset 0 0 0 1px rgba(255,255,255,.75); }
 
 .table-panel { margin-bottom: 18px; }
 .table-scroll { overflow-x: auto; }

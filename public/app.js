@@ -192,7 +192,7 @@
         catch (error) { lastError = error; if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 650)); }
       }
       if (!snapshot) throw lastError || new Error('Không thể lấy số liệu.');
-      state.snapshot = snapshot; state.id = snapshot.id || ''; if (snapshot.id) { state.review = snapshot.review || []; state.evaluations = snapshot.evaluations || []; state.workItems = snapshot.workItems || []; } renderAll(); bindEditors(); setSync('Đã đồng bộ', 'ready'); setNotice(snapshot.id ? 'Số liệu đã sẵn sàng; kỳ đã lưu sẽ không gọi lại API nguồn.' : 'Số liệu đã được lấy và lưu vào Supabase.', true);
+      state.snapshot = snapshot; state.id = snapshot.id || ''; if (snapshot.id) { state.review = snapshot.review || []; state.evaluations = snapshot.evaluations || []; state.workItems = snapshot.workItems || []; } renderAll(); bindEditors(); setSync('Đã đồng bộ', 'ready'); setNotice('');
     }
     catch (error) { setSync('Chưa đồng bộ'); setNotice(error.message || 'Không thể lấy số liệu.'); }
     finally { setBusy(false); }

@@ -3,7 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f4f7fb">
+  <meta name="theme-color" content="#f8fafc">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <title>Report ALF | Báo cáo vận hành</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
@@ -37,22 +40,22 @@
       <div class="notice" id="notice" role="status" hidden></div>
 
       <section class="metric-section" aria-labelledby="coreTitle">
-        <div class="section-heading"><h2 id="coreTitle">Kinh doanh cốt lõi</h2><span class="section-meta">Tầng 1</span></div>
+        <div class="section-heading"><h2 id="coreTitle">Kinh doanh cốt lõi</h2></div>
         <div class="metric-grid metric-grid-core" id="coreMetrics"></div>
       </section>
 
       <section class="metric-section" aria-labelledby="operationsTitle">
-        <div class="section-heading"><h2 id="operationsTitle">Vận hành và hệ thống</h2><span class="section-meta">Theo kỳ báo cáo</span></div>
+        <div class="section-heading"><h2 id="operationsTitle">Vận hành và hệ thống</h2></div>
         <div class="metric-grid metric-grid-operations" id="operationMetrics"></div>
       </section>
 
       <section class="split-grid" aria-label="Phễu traffic và tài chính">
         <article class="panel funnel-panel">
-          <div class="section-heading"><h2>Phễu chuyển đổi traffic</h2><span class="section-meta">Tầng 2</span></div>
+          <div class="section-heading"><h2>Phễu chuyển đổi traffic</h2></div>
           <div class="funnel" id="funnel"></div>
         </article>
         <article class="panel finance-panel">
-          <div class="section-heading"><div><h2>Cơ cấu GMV tổng</h2><p class="section-description">Chi phí và lợi nhuận gộp ước tính trong kỳ</p></div><span class="section-meta">Tầng 2</span></div>
+          <div class="section-heading"><div><h2>Cơ cấu GMV tổng</h2><p class="section-description">Chi phí và lợi nhuận gộp ước tính trong kỳ</p></div></div>
           <div class="finance-layout">
             <div class="donut" id="financeDonut" aria-label="Cơ cấu chi phí"></div>
             <div class="finance-legend" id="financeLegend"></div>
@@ -62,27 +65,27 @@
       </section>
 
       <section class="panel table-panel" aria-labelledby="sourcesTitle">
-        <div class="section-heading"><div><h2 id="sourcesTitle">Nguồn traffic và nội dung</h2><p class="section-description">So sánh đóng góp GMV và chất lượng traffic theo nguồn.</p></div><span class="section-meta">Tầng 3</span></div>
+        <div class="section-heading"><div><h2 id="sourcesTitle">Nguồn traffic và nội dung</h2><p class="section-description">So sánh đóng góp GMV và chất lượng traffic theo nguồn.</p></div></div>
         <div class="table-scroll"><table><thead><tr><th>Nguồn</th><th>GMV</th><th>Đóng góp</th><th>Hiển thị</th><th>Lượt nhấp</th><th>CTR</th><th>CTOR</th></tr></thead><tbody id="sourcesTable"></tbody></table></div>
       </section>
 
       <section class="panel table-panel" aria-labelledby="productsTitle">
-        <div class="section-heading"><div><h2 id="productsTitle">Top sản phẩm</h2><p class="section-description">Các sản phẩm có GMV cao nhất trong kỳ.</p></div><span class="section-meta">Product performance</span></div>
+        <div class="section-heading"><div><h2 id="productsTitle">Top sản phẩm</h2><p class="section-description">Các sản phẩm có GMV cao nhất trong kỳ.</p></div></div>
         <div class="table-scroll"><table><thead><tr><th>Sản phẩm</th><th>GMV</th><th>Đơn</th><th>Hiển thị</th><th>Nhấp</th><th>CTR</th><th>CTOR</th></tr></thead><tbody id="productsTable"></tbody></table></div>
       </section>
 
       <section class="section-block" aria-labelledby="reviewTitle">
-        <div class="section-heading"><div><p class="eyebrow">ĐÁNH GIÁ</p><h2 id="reviewTitle">Review kế hoạch kỳ trước</h2></div><span class="section-meta">Tầng 4.1</span></div>
+        <div class="section-heading"><div><p class="eyebrow">ĐÁNH GIÁ</p><h2 id="reviewTitle">Review kế hoạch kỳ trước</h2></div></div>
         <div class="editable-table" id="reviewTable"></div>
       </section>
 
       <section class="section-block" aria-labelledby="evaluationTitle">
-        <div class="section-heading"><h2 id="evaluationTitle">Đánh giá chỉ số và hành động tối ưu</h2><span class="section-meta">Tầng 4.2</span></div>
+        <div class="section-heading"><h2 id="evaluationTitle">Đánh giá chỉ số và hành động tối ưu</h2></div>
         <div class="editable-table" id="evaluationTable"></div>
       </section>
 
       <section class="section-block" aria-labelledby="planTitle">
-        <div class="section-heading"><div><p class="eyebrow">KẾ HOẠCH</p><h2 id="planTitle">Công việc thực thi</h2></div><span class="section-meta">Tầng 5</span></div>
+        <div class="section-heading"><div><p class="eyebrow">KẾ HOẠCH</p><h2 id="planTitle">Công việc thực thi</h2></div></div>
         <div class="editable-table" id="workTable"></div>
       </section>
     </main>
@@ -109,6 +112,6 @@
     </form>
   </dialog>
 
-  <script src="/app.js?v=20260803-5" defer></script>
+  <script src="/app.js?v=20260803-6" defer></script>
 </body>
 </html>
