@@ -161,8 +161,11 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
   const currentTotal = currentProductPayload?.current?.total || currentProductPayload?.total || {};
   const oldTotal = oldProductPayload?.current?.total || oldProductPayload?.total || {};
   const finance = financeBlock(current.finance);
-  const adsCost = nullable(currentAds.cost) ?? (finance.gmv > 0 ? finance.ads : null);
-  const previousAdsCost = nullable(oldAds.cost) ?? null;
+  const previousFinance = financeBlock(old.finance);
+  const reportedAdsCost = nullable(currentAds.cost);
+  const adsCost = reportedAdsCost && reportedAdsCost > 0 ? reportedAdsCost : (finance.gmv > 0 ? finance.ads : null);
+  const reportedPreviousAdsCost = nullable(oldAds.cost);
+  const previousAdsCost = reportedPreviousAdsCost && reportedPreviousAdsCost > 0 ? reportedPreviousAdsCost : (previousFinance.gmv > 0 ? previousFinance.ads : null);
   const warnings = [
     'Tỷ lệ gửi hàng nhanh và tỷ lệ phản hồi nhanh chưa có API trong dashboard nguồn.'
   ];
