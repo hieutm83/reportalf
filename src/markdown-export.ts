@@ -64,6 +64,29 @@ function cell(current: unknown, previous: unknown, kind: MetricFormat): string {
   return `${format(current, kind)} (${change(current, previous)})`;
 }
 
+function productMetricValue(metrics: any, field: string): unknown {
+  if (field === 'aov') {
+    const orders = numberValue(metrics?.orders);
+    return orders ? numberValue(metrics?.gmv) / orders : null;
+  }
+  return metrics?.[field];
+}
+
+function previousRange(period: ReportPeriod): { startDate: string; endDate: string } {
+  const days = Math.floor((Date.parse(`${period.endDate}T00:00:00Z`) - Date.parse(`${period.startDate}T00:00:00Z`)) / 86400000) + 1;
+  const end = new Date(`${period.startDate}T00:00:00Z`); end.setUTCDate(end.getUTCDate() - 1);
+  const start = new Date(end); start.setUTCDate(start.getUTCDate() - days + 1);
+  return { startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10) };
+}
+
+async function sourceWithRetry<T>(source: { base: string; cookie: string }, label: string, path: string, body: any,
+  complete: (value: T) => boolean): Promise<T> {
+  const first = await named(label, sourceRequest<T>(source, path, 'POST', body));
+  if (complete(first)) return first;
+  const refreshed = await named(`${label} (gọi lại API)`, sourceRequest<T>(source, path, 'POST', { ...body, forceRefresh: true }));
+  return complete(refreshed) ? refreshed : first;
+}
+
 function safe(value: unknown): string {
   return String(value ?? '—').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ').trim() || '—';
 }
@@ -91,7 +114,7 @@ function productPerformance(productData: any): string[] {
     const oldMetrics = previous.channels?.[key] || {};
     lines.push(`### ${label}`, '');
     lines.push(...table(['Chỉ số', 'Giá trị và so sánh'], PRODUCT_METRICS.map(([field, title, kind]) =>
-      [title, cell(metrics[field], oldMetrics[field], kind)])), '');
+      [title, cell(productMetricValue(metrics, field), productMetricValue(oldMetrics, field), kind)])), '');
     const products = (current.products || []).map((item: any) => {
       const value = item.channels?.[key] || {};
       const old = previousProducts.get(String(item.id))?.channels?.[key] || {};
@@ -101,20 +124,26 @@ function productPerformance(productData: any): string[] {
     if (!products.length) lines.push('_Không có sản phẩm phát sinh số liệu trong kỳ._', '');
     else lines.push(...table(['Tên sản phẩm', ...PRODUCT_METRICS.map(([, title]) => title)], products.map(({ item, value, old }: any) => [
       item.title || `Sản phẩm ${item.id}`,
-      ...PRODUCT_METRICS.map(([field, , kind]) => cell(value[field], old[field], kind))
+      ...PRODUCT_METRICS.map(([field, , kind]) => cell(productMetricValue(value, field), productMetricValue(old, field), kind))
     ])), '');
   }
   return lines;
 }
 
-function adsSourceRows(summary: any): Array<Array<unknown>> {
+function adsSourceRows(summary: any, previousSummary: any): Array<Array<unknown>> {
   const definitions = [['productCard', 'Thẻ sản phẩm'], ['seller', 'Người bán'], ['affiliate', 'Affiliate']] as const;
   return definitions.map(([key, label]) => {
     const item = summary?.costAttribution?.metrics?.[key] || {};
+    const old = previousSummary?.costAttribution?.metrics?.[key] || {};
     const cost = numberValue(item.cost), revenue = numberValue(item.grossRevenue), impressions = numberValue(item.impressions);
     const clicks = numberValue(item.clicks), orders = numberValue(item.orders);
-    return [label, money(cost), money(revenue), cost ? vi(revenue / cost) : '0', vi(impressions, 0), vi(clicks, 0),
-      impressions ? percent(clicks / impressions) : '0%', vi(orders, 0), clicks ? percent(orders / clicks) : '0%'];
+    const oldCost = numberValue(old.cost), oldRevenue = numberValue(old.grossRevenue), oldImpressions = numberValue(old.impressions);
+    const oldClicks = numberValue(old.clicks), oldOrders = numberValue(old.orders);
+    return [label, cell(cost, oldCost, 'money'), cell(revenue, oldRevenue, 'money'),
+      cell(cost ? revenue / cost : 0, oldCost ? oldRevenue / oldCost : 0, 'number'),
+      cell(impressions, oldImpressions, 'number'), cell(clicks, oldClicks, 'number'),
+      cell(impressions ? clicks / impressions : 0, oldImpressions ? oldClicks / oldImpressions : 0, 'percent'),
+      cell(orders, oldOrders, 'number'), cell(clicks ? orders / clicks : 0, oldClicks ? oldOrders / oldClicks : 0, 'percent')];
   });
 }
 
@@ -127,18 +156,20 @@ function videoRow(video: any): Array<unknown> {
     percent(video.viewRate25), percent(video.viewRate50), percent(video.viewRate75), percent(video.viewRate100)];
 }
 
-function adsPerformance(ads: any, summaries: any, videosByProduct: Map<string, any[]>): string[] {
+function adsPerformance(ads: any, previousAds: any, summaries: any, previousSummaries: any, videosByProduct: Map<string, any[]>): string[] {
   const lines = ['## 2. Hiệu quả quảng cáo', '', '### Nguồn', ''];
-  lines.push(...table(['Nguồn', 'COST', 'Gross revenue', 'ROI', 'Impressions', 'Click', 'CTR', 'ORDER', 'CR'], adsSourceRows(summaries)), '');
+  lines.push(...table(['Nguồn', 'COST (WoW)', 'Gross revenue (WoW)', 'ROI (WoW)', 'Impressions (WoW)', 'Click (WoW)', 'CTR (WoW)', 'ORDER (WoW)', 'CR (WoW)'], adsSourceRows(summaries, previousSummaries)), '');
   lines.push('### Sản phẩm', '');
   const products = ads?.products || [];
+  const previousProducts = new Map<string, any>((previousAds?.products || []).map((product: any) => [`${product.campaignId}:${product.itemGroupId}`, product]));
   if (!products.length) lines.push('_Không có sản phẩm quảng cáo trong kỳ._', '');
   for (const product of products) {
     const metrics = product.metrics || {};
+    const old = previousProducts.get(`${product.campaignId}:${product.itemGroupId}`)?.metrics || {};
     lines.push(`#### ${safe(product.productName || `Sản phẩm ${product.itemGroupId}`)}`, '');
-    lines.push(...table(['Cost', 'SKU orders', 'Cost / order', 'Gross revenue', 'Click', 'ROI'], [[
-      money(metrics.cost), vi(numberValue(metrics.orders), 0), money(metrics.costPerOrder), money(metrics.grossRevenue),
-      vi(numberValue(metrics.traffic), 0), vi(numberValue(metrics.roi))
+    lines.push(...table(['Cost (WoW)', 'SKU orders (WoW)', 'Cost / order (WoW)', 'Gross revenue (WoW)', 'Click (WoW)', 'ROI (WoW)'], [[
+      cell(metrics.cost, old.cost, 'money'), cell(metrics.orders, old.orders, 'number'), cell(metrics.costPerOrder, old.costPerOrder, 'money'),
+      cell(metrics.grossRevenue, old.grossRevenue, 'money'), cell(metrics.traffic, old.traffic, 'number'), cell(metrics.roi, old.roi, 'number')
     ]]), '');
     const videos = (videosByProduct.get(`${product.campaignId}:${product.itemGroupId}`) || []).filter((video) => numberValue(video.orders) > 0)
       .sort((left, right) => numberValue(right.grossRevenue) - numberValue(left.grossRevenue));
@@ -154,14 +185,30 @@ function adsPerformance(ads: any, summaries: any, videosByProduct: Map<string, a
 }
 
 function cancellationBreakdown(operations: any): string[] {
-  const rows = (items: any[]) => (items || []).map((item) => [item.label || item.reason || 'Không xác định', vi(numberValue(item.count), 0)]);
+  const rows = (items: any[]) => {
+    const total = (items || []).reduce((sum, item) => sum + numberValue(item.count), 0);
+    return (items || []).map((item) => [item.label || item.reason || 'Không xác định', vi(numberValue(item.count), 0), percent(total ? numberValue(item.count) / total : 0)]);
+  };
   const lines = ['## 3. Đơn Hoàn Hủy & Logistics', '', '### Cơ cấu lý do hủy đơn', ''];
   const cancel = rows(operations?.cancelReasons);
-  lines.push(cancel.length ? table(['Lý do', 'Số đơn'], cancel).join('\n') : '_Không có đơn hủy trong kỳ._', '',
+  lines.push(cancel.length ? table(['Lý do', 'Số đơn', 'Tỷ trọng'], cancel).join('\n') : '_Không có đơn hủy trong kỳ._', '',
     '### Cơ cấu lý do hủy do hệ thống/logistics', '');
   const failed = rows(operations?.failedReasons);
-  lines.push(failed.length ? table(['Lý do', 'Số đơn'], failed).join('\n') : '_Không có đơn hủy do hệ thống/logistics trong kỳ._', '');
+  lines.push(failed.length ? table(['Lý do', 'Số đơn', 'Tỷ trọng'], failed).join('\n') : '_Không có đơn hủy do hệ thống/logistics trong kỳ._', '',
+    '### Chỉ số tổng', '', ...table(['Chỉ số', 'Giá trị và so sánh'], [
+      ['Tỷ lệ hủy đơn tổng', cell(operations?.totals?.cancellationRate, operations?.previous?.cancellationRate, 'percent')],
+      ['Tỷ lệ trả hàng/hoàn tiền tổng', cell(operations?.totals?.returnRate, operations?.previous?.returnRate, 'percent')]
+    ]), '');
   return lines;
+}
+
+function customerService(data: any): string[] {
+  const current = data?.current || {}; const previous = data?.previous || {};
+  return ['## 5. Vận hành CSKH', '', ...table(['Chỉ số', 'Giá trị và so sánh'], [
+    ['Tỷ lệ phản hồi nhanh', cell(current.responseRate, previous.responseRate, 'percent')],
+    ['Thời gian phản hồi trung bình', `${cell(current.averageResponseMinutes, previous.averageResponseMinutes, 'number')} phút`],
+    ['Số tin nhắn chưa phản hồi trong 24h', format(current.unansweredWithin24Hours, 'number')]
+  ]), ''];
 }
 
 function revenueAnalysis(revenue: any): string[] {
@@ -190,10 +237,12 @@ async function productVideos(source: { base: string; cookie: string }, ads: any,
   for (let offset = 0; offset < products.length; offset += 4) {
     const batch = products.slice(offset, offset + 4);
     const responses = await Promise.all(batch.map(async (product: any) => {
-      const data = await named(`Video sản phẩm ${product.itemGroupId}`, sourceRequest<any>(source, '/api/product-videos', 'POST', {
+      const request = (forceRefresh: boolean) => named(`Video sản phẩm ${product.itemGroupId}`, sourceRequest<any>(source, '/api/product-videos', 'POST', {
         advertiserId: ads.advertiserId, storeId: ads.store?.storeId, startDate: period.startDate, endDate: period.endDate,
-        campaignId: product.campaignId, itemGroupId: product.itemGroupId
+        campaignId: product.campaignId, itemGroupId: product.itemGroupId, forceRefresh
       })).catch(() => ({ videos: [] }));
+      let data = await request(false);
+      if (!(data?.videos || []).some((video: any) => numberValue(video.orders) > 0)) data = await request(true);
       return { key: `${product.campaignId}:${product.itemGroupId}`, videos: data?.videos || [] };
     }));
     responses.forEach((item) => result.set(item.key, item.videos));
@@ -207,22 +256,35 @@ export async function createMarkdownExport(env: Env, period: ReportPeriod): Prom
   if (!state.defaultAdvertiserId || !state.defaultStoreCode) throw new Error('Dashboard nguồn chưa có advertiser/store mặc định.');
   const reportScope = { advertiserId: state.defaultAdvertiserId, storeId: state.defaultStoreCode, startDate: period.startDate, endDate: period.endDate };
   const sellerScope = { startDate: period.startDate, endDate: period.endDate };
-  const [products, ads, operations, revenue] = await Promise.all([
-    named('Phân tích hiệu suất', sourceRequest<any>(source, '/api/product-analysis', 'POST', sellerScope)),
-    named('Hiệu quả quảng cáo', sourceRequest<any>(source, '/api/report', 'POST', reportScope)),
-    named('Đơn Hoàn Hủy & Logistics', sourceRequest<any>(source, '/api/operations-analysis', 'POST', sellerScope)),
-    named('Phân Tích Doanh Thu', sourceRequest<any>(source, '/api/revenue-analysis', 'POST', sellerScope))
+  const previous = previousRange(period);
+  const previousReportScope = { advertiserId: state.defaultAdvertiserId, storeId: state.defaultStoreCode, ...previous };
+  const [products, ads, previousAds, operations, revenue, customerSupport] = await Promise.all([
+    sourceWithRetry<any>(source, 'Phân tích hiệu suất', '/api/product-analysis', sellerScope, (value) => Boolean(value?.current?.products?.length)),
+    sourceWithRetry<any>(source, 'Hiệu quả quảng cáo', '/api/report', reportScope, (value) => Boolean(value?.products?.length || numberValue(value?.totals?.cost))),
+    sourceWithRetry<any>(source, 'Hiệu quả quảng cáo kỳ trước', '/api/report', previousReportScope, (value) => Boolean(value?.products?.length || numberValue(value?.totals?.cost))),
+    sourceWithRetry<any>(source, 'Đơn Hoàn Hủy & Logistics', '/api/operations-analysis', sellerScope, (value) => Boolean(value?.totals)),
+    sourceWithRetry<any>(source, 'Phân Tích Doanh Thu', '/api/revenue-analysis', sellerScope, (value) => Boolean(value?.totals)),
+    sourceWithRetry<any>(source, 'Vận hành CSKH', '/api/customer-service-analysis', sellerScope, (value) => Boolean(value?.current)).catch((error) => ({ error: error instanceof Error ? error.message : String(error) }))
   ]);
-  const summaries = await named('Nguồn quảng cáo', sourceRequest<any>(source, '/api/creative-summaries', 'POST', {
+  const [summaries, previousSummaries] = await Promise.all([
+    sourceWithRetry<any>(source, 'Nguồn quảng cáo', '/api/creative-summaries', {
     ...reportScope, products: ads.products || [], allContexts: ads.creativeContexts || []
-  }));
+    }, (value) => Boolean(numberValue(value?.costAttribution?.total))),
+    sourceWithRetry<any>(source, 'Nguồn quảng cáo kỳ trước', '/api/creative-summaries', {
+      ...previousReportScope, products: previousAds.products || [], allContexts: previousAds.creativeContexts || []
+    }, (value) => Boolean(numberValue(value?.costAttribution?.total)))
+  ]);
   const videos = await productVideos(source, ads, period);
+  const warnings: string[] = [];
+  if (!numberValue(ads?.totals?.cost) && !(ads?.products || []).length) warnings.push('TikTok Ads MCP vẫn trả về 0 sau khi hệ thống đã gọi lại API; phần quảng cáo không có dữ liệu để xuất.');
+  if (customerSupport?.error) warnings.push(`Không lấy được dữ liệu CSKH: ${customerSupport.error}`);
   const markdown = [
     `# Dữ liệu ${period.title}`,
     '', `- Kỳ báo cáo: ${period.startDate} → ${period.endDate}`,
     `- Xuất lúc: ${new Intl.DateTimeFormat('vi-VN', { timeZone: env.TIMEZONE || 'Asia/Bangkok', dateStyle: 'short', timeStyle: 'medium' }).format(new Date())}`,
-    '', ...productPerformance(products), ...adsPerformance(ads, summaries, videos),
-    ...cancellationBreakdown(operations), ...revenueAnalysis(revenue)
+    ...(warnings.length ? ['', '## Cảnh báo dữ liệu', '', ...warnings.map((warning) => `- ${warning}`)] : []),
+    '', ...productPerformance(products), ...adsPerformance(ads, previousAds, summaries, previousSummaries, videos),
+    ...cancellationBreakdown(operations), ...revenueAnalysis(revenue), ...customerService(customerSupport)
   ].join('\n');
   const slug = period.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   return { filename: `${slug || 'bao-cao-du-lieu'}.md`, markdown };
