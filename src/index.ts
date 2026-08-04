@@ -3,6 +3,7 @@ import { errorMessage, json, readJson } from './json';
 import { latestMonthAnchor, latestWeekAnchor, parseDate, reportPeriod, shiftDate } from './periods';
 import { getReport, getReportForPeriod, listReports, saveReport } from './supabase';
 import { loadSourceOperations, loadSourceReport } from './source-dashboard';
+import { createMarkdownExport } from './markdown-export';
 import { handleAuth, hasSettingsAccess, hasSiteAccess, loginPage } from './auth';
 
 function isKind(value: unknown): value is ReportKind {
@@ -153,6 +154,19 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
     };
     return json({ ok: true, data: await withPreviousWorkItems(env, transient) });
   }
+  if (request.method === 'POST' && url.pathname === '/api/export-markdown') {
+    const input = await readJson<{ kind?: string; anchorDate?: string }>(request);
+    if (!isKind(input.kind)) return json({ ok: false, error: 'Loại báo cáo không hợp lệ.' }, 400);
+    const period = reportPeriod(input.kind, parseDate(input.anchorDate));
+    const exported = await createMarkdownExport(env, period);
+    return new Response(exported.markdown, {
+      headers: {
+        'Content-Type': 'text/markdown; charset=UTF-8',
+        'Content-Disposition': `attachment; filename="${exported.filename}"`,
+        'Cache-Control': 'no-store'
+      }
+    });
+  }
   if (request.method === 'POST' && url.pathname === '/api/reports') {
     const input = await readJson<{ snapshot?: ReportSnapshot; review?: any[]; evaluations?: any[]; workItems?: any[]; finalize?: boolean }>(request);
     if (!input.snapshot?.period || !isKind(input.snapshot.period.kind)) return json({ ok: false, error: 'Thiếu snapshot báo cáo.' }, 400);
@@ -192,7 +206,7 @@ export default {
         if (url.pathname.startsWith('/api/')) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
         return loginPage(`${url.pathname}${url.search}`);
       }
-      const settingsMutation = (request.method === 'POST' && url.pathname === '/api/reports') || (request.method === 'PATCH' && url.pathname === '/api/previous-work-item');
+      const settingsMutation = (request.method === 'POST' && (url.pathname === '/api/reports' || url.pathname === '/api/export-markdown')) || (request.method === 'PATCH' && url.pathname === '/api/previous-work-item');
       if (settingsMutation && !await hasSettingsAccess(request)) return json({ ok: false, error: 'Cần mật khẩu quản trị để thay đổi dữ liệu.' }, 403);
       if (url.pathname.startsWith('/api/')) return await api(request, env, url);
       return await assets(request, env);

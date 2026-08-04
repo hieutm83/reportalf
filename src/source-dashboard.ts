@@ -64,7 +64,7 @@ function sourceCookie(response: Response): string {
   return match[1];
 }
 
-async function sourceLogin(env: Env): Promise<{ base: string; cookie: string }> {
+export async function sourceLogin(env: Env): Promise<{ base: string; cookie: string }> {
   const base = String(env.SOURCE_DASHBOARD_URL || '').replace(/\/$/, '');
   if (!base || !env.SOURCE_DASHBOARD_PASSWORD) throw new Error('Thiếu cấu hình dashboard nguồn.');
   const response = await fetch(`${base}/auth/login`, {
@@ -78,7 +78,7 @@ async function sourceLogin(env: Env): Promise<{ base: string; cookie: string }> 
   return { base, cookie: sourceCookie(response) };
 }
 
-async function sourceRequest<T>(source: { base: string; cookie: string }, path: string, method: 'GET' | 'POST', body?: unknown): Promise<T> {
+export async function sourceRequest<T>(source: { base: string; cookie: string }, path: string, method: 'GET' | 'POST', body?: unknown): Promise<T> {
   const response = await fetch(`${source.base}${path}`, {
     method,
     headers: { Cookie: source.cookie, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },

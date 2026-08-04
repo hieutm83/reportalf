@@ -444,6 +444,30 @@
     } catch (error) { setNotice(error.message || 'Không thể lưu dữ liệu nhập tay.'); }
     finally { state.finalizeOnSave = false; setBusy(false); }
   }
+  async function exportMarkdown() {
+    const period = popupPeriod();
+    if (!period) return;
+    const button = $('#exportMarkdownButton');
+    const original = button.textContent;
+    button.disabled = true; button.textContent = 'Đang xuất...'; setNotice('');
+    try {
+      const response = await fetch('/api/export-markdown', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: period.kind, anchorDate: period.anchorDate })
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || `Không thể xuất dữ liệu (${response.status}).`);
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get('content-disposition') || '';
+      const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || 'bao-cao-du-lieu.md';
+      const url = URL.createObjectURL(blob); const link = document.createElement('a');
+      link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { setNotice(error.message || 'Không thể xuất dữ liệu Markdown.'); }
+    finally { button.disabled = false; button.textContent = original; }
+  }
   function addEvaluation() {
     if (!state.settingsDraft) return;
     state.settingsDraft.evaluations.push({ id: newId(), segment: '', situation: '', cause: '', action: '' }); renderPopupEvaluations();
@@ -454,7 +478,7 @@
     state.settingsDraft.workItems.push({ id, title: '', detail: '', kpi: '', owner: '', deadline: '', actions: [{ id: newId(), detail: '', kpi: '', owner: '', deadline: '' }], status: '', result: '' }); renderPopupWork();
   }
   function wire() {
-    $('#historyButton').addEventListener('click', openHistory); $('#closeHistoryButton').addEventListener('click', closeHistory); $('#overlay').addEventListener('click', closeHistory); $('#refreshButton').addEventListener('click', () => loadSource(true)); $('#saveButton').addEventListener('click', () => { state.finalizeOnSave = true; $('#settingsForm').requestSubmit(); }); $('#applySettingsButton').addEventListener('click', () => { state.finalizeOnSave = false; }); $('#addEvaluationButton').addEventListener('click', addEvaluation); $('#addWorkButton').addEventListener('click', addWork); $('#settingsForm').addEventListener('submit', applySettings); $('#anchorDate').addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }); $('#periodPickerButton').addEventListener('click', () => togglePeriodPicker());
+    $('#historyButton').addEventListener('click', openHistory); $('#closeHistoryButton').addEventListener('click', closeHistory); $('#overlay').addEventListener('click', closeHistory); $('#refreshButton').addEventListener('click', () => loadSource(true)); $('#exportMarkdownButton').addEventListener('click', exportMarkdown); $('#saveButton').addEventListener('click', () => { state.finalizeOnSave = true; $('#settingsForm').requestSubmit(); }); $('#applySettingsButton').addEventListener('click', () => { state.finalizeOnSave = false; }); $('#addEvaluationButton').addEventListener('click', addEvaluation); $('#addWorkButton').addEventListener('click', addWork); $('#settingsForm').addEventListener('submit', applySettings); $('#anchorDate').addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }); $('#periodPickerButton').addEventListener('click', () => togglePeriodPicker());
     document.querySelectorAll('input[name="reportKind"]').forEach((input) => input.addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }));
     ['#fastShippingRateInput', '#quickResponseRateInput'].forEach((selector) => $(selector).addEventListener('input', syncDraftRates));
     $('#settingsAuthForm').addEventListener('submit', submitSettingsAuth);
