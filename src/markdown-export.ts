@@ -81,10 +81,23 @@ function previousRange(period: ReportPeriod): { startDate: string; endDate: stri
 
 async function sourceWithRetry<T>(source: { base: string; cookie: string }, label: string, path: string, body: any,
   complete: (value: T) => boolean): Promise<T> {
-  const first = await named(label, sourceRequest<T>(source, path, 'POST', body));
-  if (complete(first)) return first;
-  const refreshed = await named(`${label} (gọi lại API)`, sourceRequest<T>(source, path, 'POST', { ...body, forceRefresh: true }));
-  return complete(refreshed) ? refreshed : first;
+  let first: T | undefined;
+  let firstError: unknown;
+  try {
+    first = await sourceRequest<T>(source, path, 'POST', body);
+    if (complete(first)) return first;
+  } catch (error) {
+    firstError = error;
+  }
+  try {
+    const refreshed = await sourceRequest<T>(source, path, 'POST', { ...body, forceRefresh: true });
+    return complete(refreshed) || first === undefined ? refreshed : first;
+  } catch (error) {
+    if (first !== undefined) return first;
+    const initial = firstError instanceof Error ? firstError.message : String(firstError || 'không xác định');
+    const retry = error instanceof Error ? error.message : String(error);
+    throw new Error(`${label}: gọi API lần đầu lỗi (${initial}); gọi lại vẫn lỗi (${retry}).`);
+  }
 }
 
 function safe(value: unknown): string {
@@ -147,16 +160,22 @@ function adsSourceRows(summary: any, previousSummary: any): Array<Array<unknown>
   });
 }
 
-function videoRow(video: any): Array<unknown> {
+function videoRow(video: any, old: any = {}): Array<unknown> {
   const orders = numberValue(video.orders); const cost = numberValue(video.cost); const revenue = numberValue(video.grossRevenue);
-  return [video.accountName || video.accountUserName || '—', video.status || '—', money(cost), vi(orders, 0),
-    money(video.costPerOrder ?? (orders ? cost / orders : 0)), money(revenue), vi(video.roi ?? (cost ? revenue / cost : 0)),
-    vi(numberValue(video.productImpressions), 0), vi(numberValue(video.productClicks), 0), percent(video.productClickRate),
-    percent(video.adClickRate), percent(video.adConversionRate), percent(video.viewRate2s), percent(video.viewRate6s),
-    percent(video.viewRate25), percent(video.viewRate50), percent(video.viewRate75), percent(video.viewRate100)];
+  const oldOrders = numberValue(old.orders); const oldCost = numberValue(old.cost); const oldRevenue = numberValue(old.grossRevenue);
+  return [video.accountName || video.accountUserName || '—', video.status || '—', cell(cost, oldCost, 'money'), cell(orders, oldOrders, 'number'),
+    cell(video.costPerOrder ?? (orders ? cost / orders : 0), old.costPerOrder ?? (oldOrders ? oldCost / oldOrders : 0), 'money'),
+    cell(revenue, oldRevenue, 'money'), cell(video.roi ?? (cost ? revenue / cost : 0), old.roi ?? (oldCost ? oldRevenue / oldCost : 0), 'number'),
+    cell(video.productImpressions, old.productImpressions, 'number'), cell(video.productClicks, old.productClicks, 'number'),
+    cell(video.productClickRate, old.productClickRate, 'percent'), cell(video.adClickRate, old.adClickRate, 'percent'),
+    cell(video.adConversionRate, old.adConversionRate, 'percent'), cell(video.viewRate2s, old.viewRate2s, 'percent'),
+    cell(video.viewRate6s, old.viewRate6s, 'percent'), cell(video.viewRate25, old.viewRate25, 'percent'),
+    cell(video.viewRate50, old.viewRate50, 'percent'), cell(video.viewRate75, old.viewRate75, 'percent'),
+    cell(video.viewRate100, old.viewRate100, 'percent')];
 }
 
-function adsPerformance(ads: any, previousAds: any, summaries: any, previousSummaries: any, videosByProduct: Map<string, any[]>): string[] {
+function adsPerformance(ads: any, previousAds: any, summaries: any, previousSummaries: any,
+  videosByProduct: Map<string, any[]>, previousVideosByProduct: Map<string, any[]>): string[] {
   const lines = ['## 2. Hiệu quả quảng cáo', '', '### Nguồn', ''];
   lines.push(...table(['Nguồn', 'COST (WoW)', 'Gross revenue (WoW)', 'ROI (WoW)', 'Impressions (WoW)', 'Click (WoW)', 'CTR (WoW)', 'ORDER (WoW)', 'CR (WoW)'], adsSourceRows(summaries, previousSummaries)), '');
   lines.push('### Sản phẩm', '');
@@ -171,30 +190,38 @@ function adsPerformance(ads: any, previousAds: any, summaries: any, previousSumm
       cell(metrics.cost, old.cost, 'money'), cell(metrics.orders, old.orders, 'number'), cell(metrics.costPerOrder, old.costPerOrder, 'money'),
       cell(metrics.grossRevenue, old.grossRevenue, 'money'), cell(metrics.traffic, old.traffic, 'number'), cell(metrics.roi, old.roi, 'number')
     ]]), '');
-    const videos = (videosByProduct.get(`${product.campaignId}:${product.itemGroupId}`) || []).filter((video) => numberValue(video.orders) > 0)
+    const videos = (videosByProduct.get(String(product.itemGroupId)) || []).filter((video) => numberValue(video.orders) > 0)
       .sort((left, right) => numberValue(right.grossRevenue) - numberValue(left.grossRevenue));
+    const oldVideos = new Map<string, any>((previousVideosByProduct.get(String(product.itemGroupId)) || [])
+      .map((video: any) => [String(video.itemId || video.postId || video.id || ''), video]));
     lines.push('##### Video có đơn', '');
     if (!videos.length) lines.push('_Không có video phát sinh đơn._', '');
     else lines.push(...table([
       'TikTok account', 'Status', 'Cost', 'SKU orders', 'Cost / order', 'Gross revenue', 'ROI',
       'Product ad impressions', 'Product ad clicks', 'Product ad click rate', 'Ad click rate', 'Ad conversion rate',
       '2s view rate', '6s view rate', '25% view rate', '50% view rate', '75% view rate', '100% view rate'
-    ], videos.map(videoRow)), '');
+    ], videos.map((video: any) => videoRow(video, oldVideos.get(String(video.itemId || video.postId || video.id || ''))))), '');
   }
   return lines;
 }
 
 function cancellationBreakdown(operations: any): string[] {
-  const rows = (items: any[]) => {
+  const rows = (items: any[], previousItems: any[]) => {
     const total = (items || []).reduce((sum, item) => sum + numberValue(item.count), 0);
-    return (items || []).map((item) => [item.label || item.reason || 'Không xác định', vi(numberValue(item.count), 0), percent(total ? numberValue(item.count) / total : 0)]);
+    const previousTotal = (previousItems || []).reduce((sum, item) => sum + numberValue(item.count), 0);
+    const old = new Map<string, any>((previousItems || []).map((item) => [String(item.code || item.label || item.reason || ''), item]));
+    return (items || []).map((item) => {
+      const key = String(item.code || item.label || item.reason || ''); const previous = old.get(key) || {};
+      return [item.label || item.reason || 'Không xác định', cell(item.count, previous.count, 'number'),
+        cell(total ? numberValue(item.count) / total : 0, previousTotal ? numberValue(previous.count) / previousTotal : 0, 'percent')];
+    });
   };
   const lines = ['## 3. Đơn Hoàn Hủy & Logistics', '', '### Cơ cấu lý do hủy đơn', ''];
-  const cancel = rows(operations?.cancelReasons);
-  lines.push(cancel.length ? table(['Lý do', 'Số đơn', 'Tỷ trọng'], cancel).join('\n') : '_Không có đơn hủy trong kỳ._', '',
+  const cancel = rows(operations?.cancelReasons, operations?.previousBreakdowns?.cancelReasons);
+  lines.push(cancel.length ? table(['Lý do', 'Số đơn (WoW)', 'Tỷ trọng (WoW)'], cancel).join('\n') : '_Không có đơn hủy trong kỳ._', '',
     '### Cơ cấu lý do hủy do hệ thống/logistics', '');
-  const failed = rows(operations?.failedReasons);
-  lines.push(failed.length ? table(['Lý do', 'Số đơn', 'Tỷ trọng'], failed).join('\n') : '_Không có đơn hủy do hệ thống/logistics trong kỳ._', '',
+  const failed = rows(operations?.failedReasons, operations?.previousBreakdowns?.failedReasons);
+  lines.push(failed.length ? table(['Lý do', 'Số đơn (WoW)', 'Tỷ trọng (WoW)'], failed).join('\n') : '_Không có đơn hủy do hệ thống/logistics trong kỳ._', '',
     '### Chỉ số tổng', '', ...table(['Chỉ số', 'Giá trị và so sánh'], [
       ['Tỷ lệ hủy đơn tổng', cell(operations?.totals?.cancellationRate, operations?.previous?.cancellationRate, 'percent')],
       ['Tỷ lệ trả hàng/hoàn tiền tổng', cell(operations?.totals?.returnRate, operations?.previous?.returnRate, 'percent')]
@@ -243,7 +270,7 @@ async function productVideos(source: { base: string; cookie: string }, ads: any,
       })).catch(() => ({ videos: [] }));
       let data = await request(false);
       if (!(data?.videos || []).some((video: any) => numberValue(video.orders) > 0)) data = await request(true);
-      return { key: `${product.campaignId}:${product.itemGroupId}`, videos: data?.videos || [] };
+      return { key: String(product.itemGroupId), videos: data?.videos || [] };
     }));
     responses.forEach((item) => result.set(item.key, item.videos));
   }
@@ -274,7 +301,10 @@ export async function createMarkdownExport(env: Env, period: ReportPeriod): Prom
       ...previousReportScope, products: previousAds.products || [], allContexts: previousAds.creativeContexts || []
     }, (value) => Boolean(numberValue(value?.costAttribution?.total)))
   ]);
-  const videos = await productVideos(source, ads, period);
+  const [videos, previousVideos] = await Promise.all([
+    productVideos(source, ads, period),
+    productVideos(source, previousAds, { ...period, startDate: previous.startDate, endDate: previous.endDate })
+  ]);
   const warnings: string[] = [];
   if (!numberValue(ads?.totals?.cost) && !(ads?.products || []).length) warnings.push('TikTok Ads MCP vẫn trả về 0 sau khi hệ thống đã gọi lại API; phần quảng cáo không có dữ liệu để xuất.');
   if (customerSupport?.error) warnings.push(`Không lấy được dữ liệu CSKH: ${customerSupport.error}`);
@@ -283,7 +313,7 @@ export async function createMarkdownExport(env: Env, period: ReportPeriod): Prom
     '', `- Kỳ báo cáo: ${period.startDate} → ${period.endDate}`,
     `- Xuất lúc: ${new Intl.DateTimeFormat('vi-VN', { timeZone: env.TIMEZONE || 'Asia/Bangkok', dateStyle: 'short', timeStyle: 'medium' }).format(new Date())}`,
     ...(warnings.length ? ['', '## Cảnh báo dữ liệu', '', ...warnings.map((warning) => `- ${warning}`)] : []),
-    '', ...productPerformance(products), ...adsPerformance(ads, previousAds, summaries, previousSummaries, videos),
+    '', ...productPerformance(products), ...adsPerformance(ads, previousAds, summaries, previousSummaries, videos, previousVideos),
     ...cancellationBreakdown(operations), ...revenueAnalysis(revenue), ...customerService(customerSupport)
   ].join('\n');
   const slug = period.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
