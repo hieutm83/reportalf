@@ -106,7 +106,7 @@
 
   function setNotice(message, success = false) { const node = $('#notice'); node.textContent = message || ''; node.hidden = !message; node.classList.toggle('is-success', success); }
   function setSync(text, mode = '') { const node = $('#syncState'); node.lastChild.textContent = ` ${text}`; node.classList.remove('is-ready', 'is-loading'); if (mode) node.classList.add(`is-${mode}`); }
-  function setBusy(busy) { document.body.classList.toggle('is-loading', busy); $('#refreshButton').disabled = busy; $('#saveButton').disabled = busy; }
+  function setBusy(busy) { document.body.classList.toggle('is-loading', busy); $('#refreshButton').disabled = busy; $('#saveButton').disabled = busy; const apply = $('#applySettingsButton'); if (apply) apply.disabled = busy; }
 
   function renderMetricCard(label, metric, kind, operation = false) {
     return `<article class="metric-card${operation ? ' operation' : ''}"><span class="metric-label">${escapeHtml(label)}</span><strong class="metric-value">${valueForMetric(metric, kind)}</strong><span class="metric-trend ${trendClass(metric?.change)}">${escapeHtml(formatChange(metric?.change))}</span></article>`;
