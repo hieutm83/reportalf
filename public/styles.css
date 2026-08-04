@@ -227,8 +227,18 @@ tbody tr:hover td { background: color-mix(in srgb, var(--accent) 5%, transparent
 .dialog-sync { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); }
 .dialog-shortcut { color: var(--muted); font-size: 10px; }
 kbd { padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); font-size: 10px; }
-.dialog-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+.dialog-controls { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 12px; }
 .dialog-controls .button { width: 100%; padding: 0 8px; }
+
+.report-image-sheet { width: 1224px; padding: 22px 24px 28px; overflow: hidden; background: var(--page); color: var(--ink); line-height: 1.45; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.report-image-sheet .report-heading { margin-bottom: 20px; }
+.report-image-sheet .metric-section { margin: 20px 0 24px; }
+.report-image-sheet .section-block { margin: 20px 6px 24px; }
+.report-image-sheet .split-grid { margin-bottom: 20px; }
+.report-image-sheet .edit-grid { min-width: 0; }
+.report-image-sheet .edit-grid.work { grid-template-columns: 42px 1.25fr 1.8fr 1.2fr 1fr 125px; min-width: 0; }
+.report-image-sheet .edit-grid.work > :nth-child(7n) { display: none; }
+.report-image-sheet .finance-tooltip { display: none !important; }
 .dialog-divider { height: 1px; margin: 22px 0; background: var(--line); }
 .dialog-section-label { margin-bottom: 0; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .manual-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }

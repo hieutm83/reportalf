@@ -468,6 +468,55 @@
     } catch (error) { setNotice(error.message || 'Không thể xuất dữ liệu Markdown.'); }
     finally { button.disabled = false; button.textContent = original; }
   }
+  function imageFileDate(value) {
+    const [year, month, day] = String(value || '').split('-');
+    return year && month && day ? `${day}-${month}-${year}` : 'khong-xac-dinh';
+  }
+  function reportImageSheet() {
+    const sheet = document.createElement('div');
+    sheet.className = 'report-image-sheet';
+    [
+      '.report-heading',
+      '[aria-labelledby="coreTitle"]',
+      '[aria-labelledby="operationsTitle"]',
+      '.split-grid',
+      '[aria-labelledby="evaluationTitle"]',
+      '[aria-labelledby="planTitle"]'
+    ].forEach((selector) => {
+      const section = document.querySelector(selector);
+      if (section) sheet.appendChild(section.cloneNode(true));
+    });
+    sheet.querySelectorAll('.finance-tooltip').forEach((node) => node.remove());
+    return sheet;
+  }
+  async function sheetToPng(sheet) {
+    await document.fonts?.ready;
+    if (typeof window.html2canvas !== 'function') throw new Error('Bộ tạo ảnh báo cáo chưa tải xong. Vui lòng thử lại.');
+    const canvas = await window.html2canvas(sheet, {
+      backgroundColor: '#f3f6fb', scale: 1, width: 1224, windowWidth: 1224,
+      useCORS: true, allowTaint: false, logging: false, removeContainer: true
+    });
+    return await new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Không thể mã hóa ảnh PNG.')), 'image/png'));
+  }
+  async function exportImage() {
+    const period = state.period;
+    if (!period) return;
+    const button = $('#exportImageButton'); const original = button.textContent;
+    button.disabled = true; button.textContent = 'Đang tạo ảnh...'; setNotice('');
+    closeSettings();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const sheet = reportImageSheet();
+    sheet.style.position = 'fixed'; sheet.style.left = '-20000px'; sheet.style.top = '0'; sheet.style.zIndex = '-1';
+    document.body.appendChild(sheet);
+    try {
+      const blob = await sheetToPng(sheet);
+      const filename = `report-${imageFileDate(period.startDate)}-${imageFileDate(period.endDate)}.png`;
+      const url = URL.createObjectURL(blob); const link = document.createElement('a');
+      link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { setNotice(error.message || 'Không thể tạo ảnh báo cáo.'); }
+    finally { sheet.remove(); button.disabled = false; button.textContent = original; }
+  }
   function addEvaluation() {
     if (!state.settingsDraft) return;
     state.settingsDraft.evaluations.push({ id: newId(), segment: '', situation: '', cause: '', action: '' }); renderPopupEvaluations();
@@ -492,7 +541,7 @@
     if (outside) close();
   }
   function wire() {
-    $('#historyButton').addEventListener('click', openHistory); $('#closeHistoryButton').addEventListener('click', closeHistory); $('#overlay').addEventListener('click', closeHistory); $('#refreshButton').addEventListener('click', () => loadSource(true)); $('#exportMarkdownButton').addEventListener('click', exportMarkdown); $('#saveButton').addEventListener('click', () => { state.finalizeOnSave = true; $('#settingsForm').requestSubmit(); }); $('#applySettingsButton').addEventListener('click', () => { state.finalizeOnSave = false; }); $('#addEvaluationButton').addEventListener('click', addEvaluation); $('#addWorkButton').addEventListener('click', addWork); $('#settingsForm').addEventListener('submit', applySettings); $('#anchorDate').addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }); $('#periodPickerButton').addEventListener('click', () => togglePeriodPicker());
+    $('#historyButton').addEventListener('click', openHistory); $('#closeHistoryButton').addEventListener('click', closeHistory); $('#overlay').addEventListener('click', closeHistory); $('#refreshButton').addEventListener('click', () => loadSource(true)); $('#exportMarkdownButton').addEventListener('click', exportMarkdown); $('#exportImageButton').addEventListener('click', exportImage); $('#saveButton').addEventListener('click', () => { state.finalizeOnSave = true; $('#settingsForm').requestSubmit(); }); $('#applySettingsButton').addEventListener('click', () => { state.finalizeOnSave = false; }); $('#addEvaluationButton').addEventListener('click', addEvaluation); $('#addWorkButton').addEventListener('click', addWork); $('#settingsForm').addEventListener('submit', applySettings); $('#anchorDate').addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }); $('#periodPickerButton').addEventListener('click', () => togglePeriodPicker());
     document.querySelectorAll('input[name="reportKind"]').forEach((input) => input.addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }));
     ['#fastShippingRateInput', '#quickResponseRateInput'].forEach((selector) => $(selector).addEventListener('input', syncDraftRates));
     $('#settingsAuthForm').addEventListener('submit', submitSettingsAuth);
