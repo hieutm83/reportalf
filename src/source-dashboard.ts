@@ -31,6 +31,18 @@ function percentValue(...values: unknown[]): number | null {
   return Math.abs(parsed) <= 1 ? parsed * 100 : parsed;
 }
 
+export function returnRateValue(totals: any): number | null {
+  const returns = nullable(totals?.returns);
+  const eligible = nullable(totals?.returnEligibleOrders);
+  const totalOrders = nullable(totals?.totalOrders);
+  if (returns === null) return percentValue(totals?.returnRate);
+  // Historical TikTok data can return an incomplete eligible population (for
+  // example 1 eligible order out of hundreds), producing a misleading 100%.
+  if (eligible !== null && eligible > 0 && (totalOrders === null || eligible >= totalOrders * 0.1)) return returns / eligible * 100;
+  if (totalOrders !== null && totalOrders > 0) return returns / totalOrders * 100;
+  return percentValue(totals?.returnRate);
+}
+
 function metric(value: unknown, previous: unknown): Metric {
   const current = nullable(value);
   const old = nullable(previous);
@@ -181,6 +193,31 @@ function financeBlock(current: any): ReportSnapshot['finance'] {
     totalCostRate: gmv ? totalCost / gmv : null };
 }
 
+function operationsBlock(current: any, old: any): ReportSnapshot['operations'] {
+  const currentOps = payload(current)?.totals || {};
+  const oldOps = payload(old)?.totals || {};
+  const currentOtdr = percentValue(currentOps.otdr, currentOps.OTDR, currentOps.deliveryOnTimeRate, currentOps.onTimeDeliveryRate);
+  const previousOtdr = percentValue(oldOps.otdr, oldOps.OTDR, oldOps.deliveryOnTimeRate, oldOps.onTimeDeliveryRate);
+  const currentResponse24h = percentValue(currentOps.responseWithin24Hours, currentOps.response24hRate, currentOps.customerServiceResponseRate, currentOps.responseRate);
+  const previousResponse24h = percentValue(oldOps.responseWithin24Hours, oldOps.response24hRate, oldOps.customerServiceResponseRate, oldOps.responseRate);
+  return {
+    cancellationRate: metric(scaled(currentOps.cancellationRate, 100), scaled(oldOps.cancellationRate, 100)),
+    returnRate: metric(returnRateValue(currentOps), returnRateValue(oldOps)),
+    fastShippingRate: metric(currentOtdr, previousOtdr), quickResponseRate: metric(currentResponse24h, previousResponse24h)
+  };
+}
+
+export async function loadSourceOperations(env: Env, period: ReportPeriod): Promise<ReportSnapshot['operations']> {
+  const source = await sourceLogin(env);
+  const previous = previousRange(period);
+  const scope = (startDate: string, endDate: string) => ({ startDate, endDate, forceRefresh: true });
+  const [current, old] = await Promise.all([
+    sourceRequest<any>(source, '/api/operations-analysis', 'POST', scope(period.startDate, period.endDate)),
+    sourceRequest<any>(source, '/api/operations-analysis', 'POST', scope(previous.startDate, previous.endDate))
+  ]);
+  return operationsBlock(current, old);
+}
+
 export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<ReportSnapshot> {
   const source = await sourceLogin(env);
   const state = await sourceRequest<any>(source, '/api/state', 'GET');
@@ -194,8 +231,6 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
   const oldRevenue = payload(old.revenue)?.totals || {};
   const currentAds = payload(current.ads)?.totals || {};
   const oldAds = payload(old.ads)?.totals || {};
-  const currentOps = payload(current.operations)?.totals || {};
-  const oldOps = payload(old.operations)?.totals || {};
   const currentProductPayload = payload(current.products);
   const oldProductPayload = payload(old.products);
   const currentTotal = currentProductPayload?.current?.total || currentProductPayload?.total || {};
@@ -214,13 +249,10 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
     (financeReportedPreviousAdsCost && financeReportedPreviousAdsCost > 0 ? financeReportedPreviousAdsCost : (previousFinance.ads > 0 ? previousFinance.ads : null));
   const adsCostPerOrder = nullable(currentAds.costPerOrder) ?? nullable(currentFinanceAds.costPerOrder);
   const previousAdsCostPerOrder = nullable(oldAds.costPerOrder) ?? nullable(previousFinanceAds.costPerOrder);
-  const currentOtdr = percentValue(currentOps.otdr, currentOps.OTDR, currentOps.deliveryOnTimeRate, currentOps.onTimeDeliveryRate);
-  const previousOtdr = percentValue(oldOps.otdr, oldOps.OTDR, oldOps.deliveryOnTimeRate, oldOps.onTimeDeliveryRate);
-  const currentResponse24h = percentValue(currentOps.responseWithin24Hours, currentOps.response24hRate, currentOps.customerServiceResponseRate, currentOps.responseRate);
-  const previousResponse24h = percentValue(oldOps.responseWithin24Hours, oldOps.response24hRate, oldOps.customerServiceResponseRate, oldOps.responseRate);
+  const operations = operationsBlock(current.operations, old.operations);
   const warnings: string[] = [];
-  if (currentOtdr === null) warnings.push('Tỷ lệ gửi hàng nhanh chưa được trả về từ API nguồn (dimension Hoàn thiện đơn hàng và kho vận, evaluate_duration_days=30).');
-  if (currentResponse24h === null) warnings.push('Tỷ lệ phản hồi trong 24 giờ chưa được trả về từ API customer service performance.');
+  if (operations.fastShippingRate.value === null) warnings.push('Tỷ lệ gửi hàng nhanh chưa được trả về từ API nguồn (dimension Hoàn thiện đơn hàng và kho vận, evaluate_duration_days=30).');
+  if (operations.quickResponseRate.value === null) warnings.push('Tỷ lệ phản hồi trong 24 giờ chưa được trả về từ API customer service performance.');
   const imageCatalog = new Map<string, string>();
   for (const item of payload(current.ads)?.products || []) {
     const id = String(item.itemGroupId || item.productId || item.id || '');
@@ -238,11 +270,7 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
         previousAdsCostPerOrder && previousAdsCostPerOrder > 0 ? previousAdsCostPerOrder : (previousAdsCost !== null && nullable(oldRevenue.orders) ? previousAdsCost / Math.max(1, number(oldRevenue.orders)) : null)
       )
     },
-    operations: {
-      cancellationRate: metric(scaled(currentOps.cancellationRate, 100), scaled(oldOps.cancellationRate, 100)),
-      returnRate: metric(scaled(currentOps.returnRate, 100), scaled(oldOps.returnRate, 100)),
-      fastShippingRate: metric(currentOtdr, previousOtdr), quickResponseRate: metric(currentResponse24h, previousResponse24h)
-    },
+    operations,
     funnel: {
       impressions: metric(currentTotal.impressions, oldTotal.impressions), clicks: metric(currentTotal.clicks, oldTotal.clicks),
       skuOrders: metric(currentTotal.skuOrders, oldTotal.skuOrders), ctr: metric(scaled(currentTotal.ctr, 100), scaled(oldTotal.ctr, 100)),

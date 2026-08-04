@@ -2,7 +2,7 @@ import type { Env, ReportKind, ReportRecord, ReportSnapshot, WorkItem } from './
 import { errorMessage, json, readJson } from './json';
 import { latestMonthAnchor, latestWeekAnchor, parseDate, reportPeriod, shiftDate } from './periods';
 import { getReport, getReportForPeriod, listReports, saveReport } from './supabase';
-import { loadSourceReport } from './source-dashboard';
+import { loadSourceOperations, loadSourceReport } from './source-dashboard';
 
 function isKind(value: unknown): value is ReportKind {
   return value === 'week' || value === 'month';
@@ -36,11 +36,28 @@ function preserveManualOperationMetrics(snapshot: ReportSnapshot, cached: Report
   return snapshot;
 }
 
+function snapshotOnly(record: ReportRecord): ReportSnapshot {
+  const { id: _id, review: _review, evaluations: _evaluations, workItems: _workItems, previousWorkItems: _previousWorkItems, createdAt: _createdAt, updatedAt: _updatedAt, ...snapshot } = record;
+  return snapshot;
+}
+
 async function withPreviousWorkItems(env: Env, record: ReportRecord): Promise<ReportRecord> {
   if (record.period.kind !== 'week') return { ...record, previousWorkItems: [] };
   const previousStart = shiftDate(record.period.startDate, -7);
   const previous = await getReportForPeriod(env, 'week', previousStart);
-  return { ...record, previousWorkItems: previous?.workItems || [] };
+  const operations = { ...record.operations };
+  if (previous) {
+    for (const key of ['fastShippingRate', 'quickResponseRate'] as const) {
+      const value = record.operations[key]?.value;
+      const previousValue = previous.operations[key]?.value;
+      operations[key] = {
+        ...record.operations[key], previous: previousValue,
+        change: value !== null && value !== undefined && previousValue !== null && previousValue !== undefined && previousValue !== 0
+          ? (value - previousValue) / Math.abs(previousValue) : null
+      };
+    }
+  }
+  return { ...record, operations, previousWorkItems: previous?.workItems || [] };
 }
 
 async function manualContext(env: Env, kind: ReportKind, periodStart: string): Promise<Record<string, unknown>> {
@@ -50,6 +67,8 @@ async function manualContext(env: Env, kind: ReportKind, periodStart: string): P
     weekStartDate: periodStart,
     shippingSpeedRate: current?.operations.fastShippingRate.value ?? null,
     responseRate: current?.operations.quickResponseRate.value ?? null,
+    previousShippingSpeedRate: previous?.operations.fastShippingRate.value ?? null,
+    previousResponseRate: previous?.operations.quickResponseRate.value ?? null,
     evaluations: current?.evaluations || [],
     workItems: current?.workItems || [],
     previousWorkItems: previous?.workItems || []
@@ -114,7 +133,19 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
     const cached = await getReportForPeriod(env, period.kind, period.startDate);
     const cacheNeedsRepair = cached ? hasEncodingCorruption(cached) || needsSourceComparisonRepair(cached) : false;
     if (cached && cached.dataAvailable && input.forceRefresh !== true && !cacheNeedsRepair) return json({ ok: true, data: await withPreviousWorkItems(env, cached) });
-    const snapshot = preserveManualOperationMetrics(await loadSourceReport(env, period), cached);
+    let refreshed: ReportSnapshot;
+    try {
+      refreshed = await loadSourceReport(env, period);
+    } catch (error) {
+      if (!cached) throw error;
+      const operations = await loadSourceOperations(env, period);
+      refreshed = {
+        ...snapshotOnly(cached), period, generatedAt: new Date().toISOString(),
+        warnings: [...(cached.warnings || []), 'Một phần dữ liệu tự động được giữ từ bản đã lưu do API sản phẩm TikTok tạm thời lỗi.'],
+        operations
+      };
+    }
+    const snapshot = preserveManualOperationMetrics(refreshed, cached);
     const saved = await saveReport(env, snapshot, {
       review: cached?.review || [], evaluations: cached?.evaluations || [], workItems: cached?.workItems || []
     });

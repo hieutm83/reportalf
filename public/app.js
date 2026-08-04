@@ -353,7 +353,7 @@
     const period = popupPeriod();
     if (!period) return;
     const token = newId();
-    state.settingsDraft = { token, period, shippingSpeedRate: null, responseRate: null, evaluations: [], workItems: [], loading: true };
+    state.settingsDraft = { token, period, shippingSpeedRate: null, responseRate: null, previousShippingSpeedRate: null, previousResponseRate: null, evaluations: [], workItems: [], loading: true };
     $('#fastShippingRateInput').value = '';
     $('#quickResponseRateInput').value = '';
     $('#popupEvaluationTable').innerHTML = '<div class="empty-state">Đang tải dữ liệu kỳ đã chọn...</div>';
@@ -361,7 +361,7 @@
     try {
       const context = await api(`/api/manual-context?kind=${encodeURIComponent(period.kind)}&periodStart=${encodeURIComponent(period.startDate)}`);
       if (state.settingsDraft?.token !== token) return;
-      state.settingsDraft = { token, period, shippingSpeedRate: context.shippingSpeedRate, responseRate: context.responseRate, evaluations: context.evaluations || [], workItems: context.workItems || [], loading: false };
+      state.settingsDraft = { token, period, shippingSpeedRate: context.shippingSpeedRate, responseRate: context.responseRate, previousShippingSpeedRate: context.previousShippingSpeedRate, previousResponseRate: context.previousResponseRate, evaluations: context.evaluations || [], workItems: context.workItems || [], loading: false };
       $('#fastShippingRateInput').value = context.shippingSpeedRate ?? '';
       $('#quickResponseRateInput').value = context.responseRate ?? '';
       renderPopupEvaluations(); renderPopupWork();
@@ -379,9 +379,9 @@
     updatePeriodPreview(); dialog.showModal();
     await loadSettingsDraft();
   }
-  function applyManualRate(metric, value) {
+  function applyManualRate(metric, value, previousOverride = null) {
     if (value === null || !Number.isFinite(value)) return { ...metric, value: null, change: null };
-    const previous = metric?.previous;
+    const previous = previousOverride ?? metric?.previous;
     return { ...metric, value, change: previous !== null && previous !== undefined && previous !== 0 ? (value - previous) / Math.abs(previous) : null };
   }
   async function applySettings(event) {
@@ -393,8 +393,8 @@
     try {
       const source = await api('/api/source-report', { method: 'POST', body: JSON.stringify({ kind: draft.period.kind, anchorDate: draft.period.anchorDate }) });
       source.period = draft.period;
-      source.operations.fastShippingRate = applyManualRate(source.operations.fastShippingRate, draft.shippingSpeedRate);
-      source.operations.quickResponseRate = applyManualRate(source.operations.quickResponseRate, draft.responseRate);
+      source.operations.fastShippingRate = applyManualRate(source.operations.fastShippingRate, draft.shippingSpeedRate, draft.previousShippingSpeedRate);
+      source.operations.quickResponseRate = applyManualRate(source.operations.quickResponseRate, draft.responseRate, draft.previousResponseRate);
       const payload = { snapshot: source, review: [], evaluations: draft.evaluations, workItems: draft.workItems };
       console.log('Saving for week:', draft.period.startDate, payload);
       const saved = await api('/api/reports', { method: 'POST', body: JSON.stringify(payload) });
