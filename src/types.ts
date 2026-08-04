@@ -85,6 +85,14 @@ export interface ProductRow {
   change: Record<string, number | null>;
 }
 
+export interface WorkAction {
+  id: string;
+  detail: string;
+  kpi: string;
+  owner: 'Booking' | 'Vận hành sàn' | 'CSKH' | 'Content' | '';
+  deadline: string;
+}
+
 export interface WorkItem {
   id: string;
   title: string;
@@ -92,6 +100,7 @@ export interface WorkItem {
   kpi: string;
   owner: string;
   deadline: string;
+  actions?: WorkAction[];
   status?: 'Đạt' | 'Chưa đạt' | 'Trễ hạn' | '';
   result?: string;
 }

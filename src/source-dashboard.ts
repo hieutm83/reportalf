@@ -91,12 +91,15 @@ function previousRange(period: ReportPeriod): { startDate: string; endDate: stri
 
 async function bundle(source: { base: string; cookie: string }, state: any, startDate: string, endDate: string): Promise<Bundle> {
   const scope = { startDate, endDate, forceRefresh: true };
+  const stableFinanceScope = { startDate, endDate };
   const reportScope = { advertiserId: state.defaultAdvertiserId, storeId: state.defaultStoreCode, ...scope };
   const [revenue, ads, operations, finance, products] = await Promise.all([
     sourceRequest<any>(source, '/api/revenue-analysis', 'POST', scope),
     sourceRequest<any>(source, '/api/report', 'POST', reportScope),
     sourceRequest<any>(source, '/api/operations-analysis', 'POST', scope),
-    sourceRequest<any>(source, '/api/finance-analysis', 'POST', scope),
+    // Finance refresh can exceed the source Worker's subrequest limit and return
+    // a partial summary. Its cache is period-keyed and contains the complete block.
+    sourceRequest<any>(source, '/api/finance-analysis', 'POST', stableFinanceScope),
     sourceRequest<any>(source, '/api/product-analysis', 'POST', scope)
   ]);
   return { revenue, ads, operations, finance, products };
@@ -199,12 +202,18 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
   const oldTotal = oldProductPayload?.current?.total || oldProductPayload?.total || {};
   const finance = financeBlock(current.finance);
   const previousFinance = financeBlock(old.finance);
+  const currentFinanceAds = payload(current.finance)?.current?.ads || payload(current.finance)?.ads || {};
+  const previousFinanceAds = payload(old.finance)?.current?.ads || payload(old.finance)?.ads || {};
   const reportedAdsCost = nullable(currentAds.cost);
-  const adsCost = reportedAdsCost && reportedAdsCost > 0 ? reportedAdsCost : (finance.gmv > 0 ? finance.ads : null);
+  const financeReportedAdsCost = nullable(currentFinanceAds.cost);
+  const adsCost = reportedAdsCost && reportedAdsCost > 0 ? reportedAdsCost :
+    (financeReportedAdsCost && financeReportedAdsCost > 0 ? financeReportedAdsCost : (finance.ads > 0 ? finance.ads : null));
   const reportedPreviousAdsCost = nullable(oldAds.cost);
-  const previousAdsCost = reportedPreviousAdsCost && reportedPreviousAdsCost > 0 ? reportedPreviousAdsCost : (previousFinance.gmv > 0 ? previousFinance.ads : null);
-  const adsCostPerOrder = nullable(currentAds.costPerOrder);
-  const previousAdsCostPerOrder = nullable(oldAds.costPerOrder);
+  const financeReportedPreviousAdsCost = nullable(previousFinanceAds.cost);
+  const previousAdsCost = reportedPreviousAdsCost && reportedPreviousAdsCost > 0 ? reportedPreviousAdsCost :
+    (financeReportedPreviousAdsCost && financeReportedPreviousAdsCost > 0 ? financeReportedPreviousAdsCost : (previousFinance.ads > 0 ? previousFinance.ads : null));
+  const adsCostPerOrder = nullable(currentAds.costPerOrder) ?? nullable(currentFinanceAds.costPerOrder);
+  const previousAdsCostPerOrder = nullable(oldAds.costPerOrder) ?? nullable(previousFinanceAds.costPerOrder);
   const currentOtdr = percentValue(currentOps.otdr, currentOps.OTDR, currentOps.deliveryOnTimeRate, currentOps.onTimeDeliveryRate);
   const previousOtdr = percentValue(oldOps.otdr, oldOps.OTDR, oldOps.deliveryOnTimeRate, oldOps.onTimeDeliveryRate);
   const currentResponse24h = percentValue(currentOps.responseWithin24Hours, currentOps.response24hRate, currentOps.customerServiceResponseRate, currentOps.responseRate);

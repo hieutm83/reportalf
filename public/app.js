@@ -195,9 +195,20 @@
   }
 
   function inputCell(value, field, id, area = false) { return area ? `<textarea data-field="${field}" data-id="${id}" rows="2">${escapeHtml(value)}</textarea>` : `<input data-field="${field}" data-id="${id}" value="${escapeHtml(value)}">`; }
+  const ownerOptions = ['Booking', 'Vận hành sàn', 'CSKH', 'Content'];
+  function ensureWorkActions(row) {
+    if (Array.isArray(row.actions) && row.actions.length) return row.actions;
+    row.actions = [{ id: `${row.id}-action-1`, detail: row.detail || '', kpi: row.kpi || '', owner: row.owner || '', deadline: row.deadline || '' }];
+    return row.actions;
+  }
+  function ownerTag(owner) {
+    if (!owner) return '<span class="owner-tag owner-empty">Chưa chọn</span>';
+    const key = { Booking: 'booking', 'Vận hành sàn': 'operations', CSKH: 'cskh', Content: 'content' }[owner] || 'empty';
+    return `<span class="owner-tag owner-${key}">${escapeHtml(owner)}</span>`;
+  }
   function renderReview() {
     const rows = state.review || [];
-    $('#reviewTable').innerHTML = `<div class="edit-grid review-work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head">Trạng thái</div><div class="edit-head">Đánh giá kết quả</div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}</div><div class="edit-cell"><span class="readonly-value"><strong>${escapeHtml(row.title)}</strong>${row.detail ? `\n${escapeHtml(row.detail)}` : ''}${row.kpi ? `\nKPI: ${escapeHtml(row.kpi)}` : ''}</span></div><div class="edit-cell"><span class="readonly-value">${escapeHtml(row.owner)}</span></div><div class="edit-cell"><span class="readonly-value">${escapeHtml(row.deadline)}</span></div><div class="edit-cell"><select data-previous-field="status" data-id="${escapeHtml(row.id)}"><option value="">Chọn trạng thái</option>${['Đạt', 'Chưa đạt', 'Trễ hạn'].map((value) => `<option value="${value}"${row.status === value ? ' selected' : ''}>${value}</option>`).join('')}</select><div class="save-state" data-save-state="${escapeHtml(row.id)}"></div></div><div class="edit-cell"><textarea data-previous-field="result" data-id="${escapeHtml(row.id)}" rows="2" placeholder="Nhập kết quả thực tế">${escapeHtml(row.result || '')}</textarea></div>`).join('')}</div>`;
+    $('#reviewTable').innerHTML = `<div class="edit-grid review-work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head">Trạng thái</div><div class="edit-head">Đánh giá kết quả</div>${rows.map((row, index) => { const actions = ensureWorkActions(row); return `<div class="edit-cell row-number">${index + 1}</div><div class="edit-cell"><span class="readonly-value"><strong>${escapeHtml(row.title)}</strong>${actions.map((action) => `\n• ${escapeHtml(action.detail)}${action.kpi ? ` — ${escapeHtml(action.kpi)}` : ''}`).join('')}</span></div><div class="edit-cell"><div class="owner-tags">${[...new Set(actions.map((action) => action.owner).filter(Boolean))].map(ownerTag).join('')}</div></div><div class="edit-cell"><span class="readonly-value">${[...new Set(actions.map((action) => action.deadline).filter(Boolean))].map(escapeHtml).join('\n')}</span></div><div class="edit-cell"><select data-previous-field="status" data-id="${escapeHtml(row.id)}"><option value="">Chọn trạng thái</option>${['Đạt', 'Chưa đạt', 'Trễ hạn'].map((value) => `<option value="${value}"${row.status === value ? ' selected' : ''}>${value}</option>`).join('')}</select><div class="save-state" data-save-state="${escapeHtml(row.id)}"></div></div><div class="edit-cell"><textarea data-previous-field="result" data-id="${escapeHtml(row.id)}" rows="2" placeholder="Nhập kết quả thực tế">${escapeHtml(row.result || '')}</textarea></div>`; }).join('')}</div>`;
     if (!rows.length) $('#reviewTable').innerHTML = '<div class="empty-state">Chưa có công việc kỳ trước</div>';
   }
   function renderEvaluations() {
@@ -207,7 +218,7 @@
   }
   function renderWork() {
     const rows = state.workItems || [];
-    $('#workTable').innerHTML = `<div class="edit-grid work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Chi tiết hành động</div><div class="edit-head">Mục tiêu KPI</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head"></div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}</div>${['title', 'detail', 'kpi', 'owner', 'deadline'].map((field) => `<div class="edit-cell"><span class="readonly-value">${escapeHtml(row[field])}</span></div>`).join('')}<div class="edit-cell"></div>`).join('')}</div>`;
+    $('#workTable').innerHTML = `<div class="edit-grid work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Chi tiết hành động</div><div class="edit-head">Mục tiêu KPI</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head"></div>${rows.map((row, index) => ensureWorkActions(row).map((action, actionIndex) => `<div class="edit-cell row-number">${actionIndex === 0 ? index + 1 : ''}</div><div class="edit-cell"><span class="readonly-value">${actionIndex === 0 ? `<strong>${escapeHtml(row.title)}</strong>` : ''}</span></div><div class="edit-cell"><span class="readonly-value">${escapeHtml(action.detail)}</span></div><div class="edit-cell"><span class="readonly-value">${escapeHtml(action.kpi)}</span></div><div class="edit-cell"><div class="readonly-value">${ownerTag(action.owner)}</div></div><div class="edit-cell"><span class="readonly-value">${escapeHtml(action.deadline)}</span></div><div class="edit-cell"></div>`).join('')).join('')}</div>`;
     if (!rows.length) $('#workTable').innerHTML = '<div class="empty-state">Chưa có công việc. Thêm một dòng để bắt đầu kế hoạch.</div>';
   }
   function renderPopupEvaluations() {
@@ -217,7 +228,7 @@
   }
   function renderPopupWork() {
     const rows = state.settingsDraft?.workItems || [];
-    $('#popupWorkTable').innerHTML = rows.length ? `<div class="edit-grid work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Chi tiết hành động</div><div class="edit-head">Mục tiêu KPI</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head"></div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}</div><div class="edit-cell">${inputCell(row.title, 'title', row.id, true)}</div><div class="edit-cell">${inputCell(row.detail, 'detail', row.id, true)}</div><div class="edit-cell">${inputCell(row.kpi, 'kpi', row.id, true)}</div><div class="edit-cell">${inputCell(row.owner, 'owner', row.id)}</div><div class="edit-cell"><input type="date" data-field="deadline" data-id="${row.id}" value="${escapeHtml(row.deadline)}"></div><div class="edit-cell"><button class="delete-row" data-delete-work="${row.id}" type="button" aria-label="Xóa công việc">×</button></div>`).join('')}</div>` : '<div class="empty-state">Chưa có công việc cho kỳ này.</div>';
+    $('#popupWorkTable').innerHTML = rows.length ? `<div class="edit-grid work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Chi tiết hành động</div><div class="edit-head">Mục tiêu KPI</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head"></div>${rows.map((row, index) => ensureWorkActions(row).map((action, actionIndex) => `<div class="edit-cell row-number">${actionIndex === 0 ? index + 1 : ''}</div><div class="edit-cell">${actionIndex === 0 ? `${inputCell(row.title, 'title', row.id, true)}<div class="work-row-actions"><button class="mini-action" data-add-action="${row.id}" type="button">+ Chi tiết</button><button class="mini-action danger" data-delete-work="${row.id}" type="button">Xóa việc</button></div>` : ''}</div><div class="edit-cell"><textarea data-action-field="detail" data-task-id="${row.id}" data-action-id="${action.id}" rows="2">${escapeHtml(action.detail)}</textarea></div><div class="edit-cell"><textarea data-action-field="kpi" data-task-id="${row.id}" data-action-id="${action.id}" rows="2">${escapeHtml(action.kpi)}</textarea></div><div class="edit-cell"><select data-action-field="owner" data-task-id="${row.id}" data-action-id="${action.id}"><option value="">Chọn phụ trách</option>${ownerOptions.map((owner) => `<option value="${owner}"${action.owner === owner ? ' selected' : ''}>${owner}</option>`).join('')}</select></div><div class="edit-cell"><input type="date" data-action-field="deadline" data-task-id="${row.id}" data-action-id="${action.id}" value="${escapeHtml(action.deadline)}"></div><div class="edit-cell"><button class="delete-row" data-delete-action="${action.id}" data-task-id="${row.id}" type="button" aria-label="Xóa chi tiết">×</button></div>`).join('')).join('')}</div>` : '<div class="empty-state">Chưa có công việc cho kỳ này.</div>';
     bindPopupEditors();
   }
   function renderPeriodPicker() {
@@ -265,6 +276,11 @@
     if (!state.settingsDraft) return;
     syncEditableRows($('#popupEvaluationTable'), state.settingsDraft.evaluations);
     syncEditableRows($('#popupWorkTable'), state.settingsDraft.workItems);
+    $('#popupWorkTable').querySelectorAll('[data-action-field]').forEach((input) => input.addEventListener('input', () => {
+      const task = state.settingsDraft.workItems.find((row) => row.id === input.dataset.taskId);
+      const action = task ? ensureWorkActions(task).find((row) => row.id === input.dataset.actionId) : null;
+      if (action) action[input.dataset.actionField] = input.value;
+    }));
   }
   function bindEditors() {
     $('#reviewTable').querySelectorAll('[data-previous-field]').forEach((input) => input.addEventListener('change', async () => {
@@ -394,7 +410,8 @@
   }
   function addWork() {
     if (!state.settingsDraft) return;
-    state.settingsDraft.workItems.push({ id: newId(), title: '', detail: '', kpi: '', owner: '', deadline: '', status: '', result: '' }); renderPopupWork();
+    const id = newId();
+    state.settingsDraft.workItems.push({ id, title: '', detail: '', kpi: '', owner: '', deadline: '', actions: [{ id: newId(), detail: '', kpi: '', owner: '', deadline: '' }], status: '', result: '' }); renderPopupWork();
   }
   function wire() {
     $('#historyButton').addEventListener('click', openHistory); $('#closeHistoryButton').addEventListener('click', closeHistory); $('#overlay').addEventListener('click', closeHistory); $('#refreshButton').addEventListener('click', () => loadSource(true)); $('#saveButton').addEventListener('click', () => $('#settingsForm').requestSubmit()); $('#addEvaluationButton').addEventListener('click', addEvaluation); $('#addWorkButton').addEventListener('click', addWork); $('#settingsForm').addEventListener('submit', applySettings); $('#anchorDate').addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }); $('#periodPickerButton').addEventListener('click', () => togglePeriodPicker());
@@ -404,7 +421,15 @@
     document.addEventListener('click', (event) => { if (!event.target.closest('.period-toolbar')) togglePeriodPicker(false); });
     window.addEventListener('popstate', () => { const route = periodFromPath(); if (route) selectPeriod(route.kind, route.anchorDate, false); });
     $('#popupEvaluationTable').addEventListener('click', (event) => { const button = event.target.closest('[data-delete-evaluation]'); if (!button || !state.settingsDraft) return; state.settingsDraft.evaluations = state.settingsDraft.evaluations.filter((row) => row.id !== button.dataset.deleteEvaluation); renderPopupEvaluations(); });
-    $('#popupWorkTable').addEventListener('click', (event) => { const button = event.target.closest('[data-delete-work]'); if (!button || !state.settingsDraft) return; state.settingsDraft.workItems = state.settingsDraft.workItems.filter((row) => row.id !== button.dataset.deleteWork); renderPopupWork(); });
+    $('#popupWorkTable').addEventListener('click', (event) => {
+      if (!state.settingsDraft) return;
+      const add = event.target.closest('[data-add-action]');
+      if (add) { const task = state.settingsDraft.workItems.find((row) => row.id === add.dataset.addAction); if (task) ensureWorkActions(task).push({ id: newId(), detail: '', kpi: '', owner: '', deadline: '' }); renderPopupWork(); return; }
+      const removeAction = event.target.closest('[data-delete-action]');
+      if (removeAction) { const task = state.settingsDraft.workItems.find((row) => row.id === removeAction.dataset.taskId); if (task) { task.actions = ensureWorkActions(task).filter((row) => row.id !== removeAction.dataset.deleteAction); if (!task.actions.length) task.actions.push({ id: newId(), detail: '', kpi: '', owner: '', deadline: '' }); } renderPopupWork(); return; }
+      const removeTask = event.target.closest('[data-delete-work]');
+      if (removeTask) { state.settingsDraft.workItems = state.settingsDraft.workItems.filter((row) => row.id !== removeTask.dataset.deleteWork); renderPopupWork(); }
+    });
     document.addEventListener('keydown', (event) => { if (event.key.toLowerCase() === 'i' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) { event.preventDefault(); openSettings(); } if (event.key === 'Escape') { closeHistory(); togglePeriodPicker(false); } });
   }
 
