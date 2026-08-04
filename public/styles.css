@@ -206,6 +206,11 @@ tbody tr:hover td { background: color-mix(in srgb, var(--accent) 5%, transparent
 .overlay { position: fixed; inset: 0; z-index: 40; background: rgba(15, 26, 44, .38); }
 .settings-dialog { width: min(1180px, calc(100% - 32px)); max-height: 92dvh; padding: 0; border: 0; background: transparent; color: var(--ink); }
 .settings-dialog::backdrop { background: rgba(15, 26, 44, .48); backdrop-filter: blur(4px); }
+.settings-auth-dialog { width: min(430px, calc(100% - 32px)); padding: 0; border: 0; background: transparent; color: var(--ink); }
+.settings-auth-dialog::backdrop { background: rgba(15, 26, 44, .48); backdrop-filter: blur(4px); }
+.settings-auth-card { padding: 25px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: 0 24px 80px rgba(15, 26, 44, .2); }
+.settings-auth-copy { margin: 18px 0; color: var(--muted); font-size: 12px; }
+.settings-auth-error { margin: 10px 0 0; padding: 9px 10px; border-radius: 7px; background: #fff1f2; color: var(--negative); font-size: 11px; }
 .dialog-card { max-height: 92dvh; overflow-y: auto; padding: 27px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 24px 80px rgba(15, 26, 44, .2); }
 .choice-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 26px 0 21px; }
 .choice { display: flex; gap: 9px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
@@ -244,6 +249,11 @@ kbd { padding: 2px 5px; border: 1px solid var(--line); border-radius: 4px; backg
 .owner-cskh { background: #fef3c7; color: #b45309; }
 .owner-content { background: #f3e8ff; color: #7e22ce; }
 .owner-empty { background: #eef2f7; color: var(--muted); }
+.status-tag { display: inline-flex; align-items: center; min-height: 24px; padding: 4px 9px; border-radius: 999px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.status-done { background: #dcfce7; color: #15803d; }
+.status-pending { background: #fef3c7; color: #b45309; }
+.status-late { background: #fee2e2; color: #b91c1c; }
+.status-empty { background: #eef2f7; color: var(--muted); }
 .work-row-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .mini-action { border: 0; border-radius: 6px; padding: 4px 7px; background: #eaf2ff; color: var(--accent); font-size: 9px; font-weight: 750; }
 .mini-action.danger { background: #fff1f2; color: var(--negative); }

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <title>Report ALF | Báo cáo vận hành</title>
-  <link rel="stylesheet" href="/styles.css?v=20260804-6">
+  <link rel="stylesheet" href="/styles.css?v=20260804-8">
 </head>
 <body>
   <div class="app-shell">
@@ -97,6 +97,16 @@
   </aside>
   <div class="overlay" id="overlay" hidden></div>
 
+  <dialog class="settings-auth-dialog" id="settingsAuthDialog">
+    <form class="settings-auth-card" id="settingsAuthForm">
+      <div class="dialog-head"><div><p class="eyebrow">QUYỀN QUẢN TRỊ</p><h2>Mở cài đặt báo cáo</h2></div><button class="icon-button" type="button" id="closeSettingsAuth" aria-label="Đóng">×</button></div>
+      <p class="settings-auth-copy">Nhập mật khẩu quản trị để mở popup phím <kbd>i</kbd>.</p>
+      <label class="field"><span>Mật khẩu quản trị</span><input id="settingsPasswordInput" type="password" autocomplete="current-password" required></label>
+      <p class="settings-auth-error" id="settingsAuthError" hidden></p>
+      <div class="dialog-actions"><button class="button button-quiet" type="button" id="cancelSettingsAuth">Hủy</button><button class="button button-primary" type="submit">Mở cài đặt</button></div>
+    </form>
+  </dialog>
+
   <dialog class="settings-dialog" id="settingsDialog">
     <form method="dialog" class="dialog-card" id="settingsForm">
       <div class="dialog-head"><div><p class="eyebrow">ĐIỀU KHIỂN BÁO CÁO</p><h2>Cài đặt và đồng bộ</h2></div><button class="icon-button" value="cancel" aria-label="Đóng">×</button></div>
@@ -114,6 +124,10 @@
         <label class="field"><span>Tỷ lệ phản hồi</span><input id="quickResponseRateInput" type="number" min="0" max="100" step="0.01" placeholder="Ví dụ: 95"><small>Nhập theo phần trăm (%).</small></label>
       </div>
       <section class="dialog-manual-section">
+        <div class="dialog-section-head"><div><p class="dialog-section-label">Review kế hoạch kỳ trước</p><small>Chỉ cập nhật trạng thái và đánh giá kết quả của công việc kỳ trước.</small></div></div>
+        <div class="popup-edit-table" id="popupReviewTable"></div>
+      </section>
+      <section class="dialog-manual-section">
         <div class="dialog-section-head"><div><p class="dialog-section-label">Đánh giá chỉ số và hành động tối ưu</p><small>Chỉ áp dụng cho kỳ đang chọn.</small></div><button class="button button-secondary" id="addEvaluationButton" type="button">+ Thêm dòng</button></div>
         <div class="popup-edit-table" id="popupEvaluationTable"></div>
       </section>
@@ -125,6 +139,6 @@
     </form>
   </dialog>
 
-  <script src="/app.js?v=20260804-7" defer></script>
+  <script src="/app.js?v=20260804-8" defer></script>
 </body>
 </html>

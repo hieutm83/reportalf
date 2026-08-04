@@ -3,6 +3,7 @@ import { errorMessage, json, readJson } from './json';
 import { latestMonthAnchor, latestWeekAnchor, parseDate, reportPeriod, shiftDate } from './periods';
 import { getReport, getReportForPeriod, listReports, saveReport } from './supabase';
 import { loadSourceOperations, loadSourceReport } from './source-dashboard';
+import { handleAuth, hasSettingsAccess, hasSiteAccess, loginPage } from './auth';
 
 function isKind(value: unknown): value is ReportKind {
   return value === 'week' || value === 'month';
@@ -183,6 +184,13 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
       const url = new URL(request.url);
+      if (url.pathname.startsWith('/auth/')) return await handleAuth(request, url);
+      if (url.pathname !== '/api/health' && (url.pathname.startsWith('/api/') || !url.pathname.includes('.')) && !await hasSiteAccess(request)) {
+        if (url.pathname.startsWith('/api/')) return json({ ok: false, error: 'Vui lòng đăng nhập.' }, 401);
+        return loginPage(`${url.pathname}${url.search}`);
+      }
+      const settingsMutation = (request.method === 'POST' && url.pathname === '/api/reports') || (request.method === 'PATCH' && url.pathname === '/api/previous-work-item');
+      if (settingsMutation && !await hasSettingsAccess(request)) return json({ ok: false, error: 'Cần mật khẩu quản trị để thay đổi dữ liệu.' }, 403);
       if (url.pathname.startsWith('/api/')) return await api(request, env, url);
       return await assets(request, env);
     } catch (error) {

@@ -206,9 +206,13 @@
     const key = { Booking: 'booking', 'Vận hành sàn': 'operations', CSKH: 'cskh', Content: 'content' }[owner] || 'empty';
     return `<span class="owner-tag owner-${key}">${escapeHtml(owner)}</span>`;
   }
+  function statusTag(status) {
+    const key = { 'Đạt': 'done', 'Chưa đạt': 'pending', 'Trễ hạn': 'late' }[status] || 'empty';
+    return `<span class="status-tag status-${key}">${escapeHtml(status || 'Chưa đánh giá')}</span>`;
+  }
   function renderReview() {
     const rows = state.review || [];
-    $('#reviewTable').innerHTML = `<div class="edit-grid review-work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head">Trạng thái</div><div class="edit-head">Đánh giá kết quả</div>${rows.map((row, index) => { const actions = ensureWorkActions(row); return `<div class="edit-cell row-number">${index + 1}</div><div class="edit-cell"><span class="readonly-value"><strong>${escapeHtml(row.title)}</strong>${actions.map((action) => `\n• ${escapeHtml(action.detail)}${action.kpi ? ` — ${escapeHtml(action.kpi)}` : ''}`).join('')}</span></div><div class="edit-cell"><div class="owner-tags">${[...new Set(actions.map((action) => action.owner).filter(Boolean))].map(ownerTag).join('')}</div></div><div class="edit-cell"><span class="readonly-value">${[...new Set(actions.map((action) => action.deadline).filter(Boolean))].map(escapeHtml).join('\n')}</span></div><div class="edit-cell"><select data-previous-field="status" data-id="${escapeHtml(row.id)}"><option value="">Chọn trạng thái</option>${['Đạt', 'Chưa đạt', 'Trễ hạn'].map((value) => `<option value="${value}"${row.status === value ? ' selected' : ''}>${value}</option>`).join('')}</select><div class="save-state" data-save-state="${escapeHtml(row.id)}"></div></div><div class="edit-cell"><textarea data-previous-field="result" data-id="${escapeHtml(row.id)}" rows="2" placeholder="Nhập kết quả thực tế">${escapeHtml(row.result || '')}</textarea></div>`; }).join('')}</div>`;
+    $('#reviewTable').innerHTML = `<div class="edit-grid review-work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head">Trạng thái</div><div class="edit-head">Đánh giá kết quả</div>${rows.map((row, index) => { const actions = ensureWorkActions(row); return `<div class="edit-cell row-number">${index + 1}</div><div class="edit-cell"><span class="readonly-value"><strong>${escapeHtml(row.title)}</strong>${actions.map((action) => `\n• ${escapeHtml(action.detail)}${action.kpi ? ` — ${escapeHtml(action.kpi)}` : ''}`).join('')}</span></div><div class="edit-cell"><div class="owner-tags">${[...new Set(actions.map((action) => action.owner).filter(Boolean))].map(ownerTag).join('')}</div></div><div class="edit-cell"><span class="readonly-value">${[...new Set(actions.map((action) => action.deadline).filter(Boolean))].map(escapeHtml).join('\n')}</span></div><div class="edit-cell"><div class="readonly-value">${statusTag(row.status)}</div></div><div class="edit-cell"><span class="readonly-value">${escapeHtml(row.result || 'Chưa có đánh giá')}</span></div>`; }).join('')}</div>`;
     if (!rows.length) $('#reviewTable').innerHTML = '<div class="empty-state">Chưa có công việc kỳ trước</div>';
   }
   function renderEvaluations() {
@@ -225,6 +229,11 @@
     const rows = state.settingsDraft?.evaluations || [];
     $('#popupEvaluationTable').innerHTML = rows.length ? `<div class="edit-grid"><div class="edit-head">STT</div><div class="edit-head">Chỉ số / Phân khúc</div><div class="edit-head">Thực trạng</div><div class="edit-head">Nguyên nhân</div><div class="edit-head">Hành động</div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}<button class="delete-row" data-delete-evaluation="${row.id}" type="button" aria-label="Xóa dòng">×</button></div><div class="edit-cell">${inputCell(row.segment, 'segment', row.id, true)}</div><div class="edit-cell">${inputCell(row.situation, 'situation', row.id, true)}</div><div class="edit-cell">${inputCell(row.cause, 'cause', row.id, true)}</div><div class="edit-cell">${inputCell(row.action, 'action', row.id, true)}</div>`).join('')}</div>` : '<div class="empty-state">Chưa có dòng đánh giá.</div>';
     bindPopupEditors();
+  }
+  function renderPopupReview() {
+    const rows = state.settingsDraft?.previousWorkItems || [];
+    $('#popupReviewTable').innerHTML = rows.length ? `<div class="edit-grid review-work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head">Trạng thái</div><div class="edit-head">Đánh giá kết quả</div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}</div><div class="edit-cell"><span class="readonly-value"><strong>${escapeHtml(row.title)}</strong></span></div><div class="edit-cell"><div class="owner-tags">${[...new Set(ensureWorkActions(row).map((action) => action.owner).filter(Boolean))].map(ownerTag).join('')}</div></div><div class="edit-cell"><span class="readonly-value">${[...new Set(ensureWorkActions(row).map((action) => action.deadline).filter(Boolean))].map(escapeHtml).join('\n')}</span></div><div class="edit-cell"><select data-previous-field="status" data-id="${escapeHtml(row.id)}"><option value="">Chọn trạng thái</option>${['Đạt', 'Chưa đạt', 'Trễ hạn'].map((value) => `<option value="${value}"${row.status === value ? ' selected' : ''}>${value}</option>`).join('')}</select><div class="save-state" data-save-state="${escapeHtml(row.id)}"></div></div><div class="edit-cell"><textarea data-previous-field="result" data-id="${escapeHtml(row.id)}" rows="2" placeholder="Nhập kết quả thực tế">${escapeHtml(row.result || '')}</textarea></div>`).join('')}</div>` : '<div class="empty-state">Chưa có công việc kỳ trước</div>';
+    bindPreviousReviewEditors($('#popupReviewTable'), rows);
   }
   function renderPopupWork() {
     const rows = state.settingsDraft?.workItems || [];
@@ -282,21 +291,24 @@
       if (action) action[input.dataset.actionField] = input.value;
     }));
   }
-  function bindEditors() {
-    $('#reviewTable').querySelectorAll('[data-previous-field]').forEach((input) => input.addEventListener('change', async () => {
-      const item = state.review.find((row) => row.id === input.dataset.id);
-      if (!item || state.kind !== 'week') return;
+  function bindPreviousReviewEditors(root, rows) {
+    root.querySelectorAll('[data-previous-field]').forEach((input) => input.addEventListener('change', async () => {
+      const item = rows.find((row) => row.id === input.dataset.id);
+      if (!item || state.settingsDraft?.period.kind !== 'week') return;
       item[input.dataset.previousField] = input.value;
       const status = $(`[data-save-state="${CSS.escape(item.id)}"]`);
       if (status) status.textContent = 'Đang lưu...';
       try {
-        await api('/api/previous-work-item', { method: 'PATCH', body: JSON.stringify({ currentWeekStartDate: state.period.startDate, taskId: item.id, [input.dataset.previousField]: input.value }) });
+        await api('/api/previous-work-item', { method: 'PATCH', body: JSON.stringify({ currentWeekStartDate: state.settingsDraft.period.startDate, taskId: item.id, [input.dataset.previousField]: input.value }) });
         if (status) status.textContent = 'Đã lưu';
+        const mainItem = state.period?.startDate === state.settingsDraft?.period.startDate ? state.review.find((row) => row.id === item.id) : null;
+        if (mainItem) { mainItem[input.dataset.previousField] = input.value; renderReview(); }
       } catch (error) {
         if (status) status.textContent = error.message || 'Lưu thất bại';
       }
     }));
   }
+  function bindEditors() {}
   function updatePeriodPreview() { const kind = document.querySelector('input[name="reportKind"]:checked')?.value || state.kind; const period = window.__periods?.[kind]; const anchor = $('#anchorDate').value; if (!anchor) return; const [year, month, day] = anchor.split('-').map(Number); const date = new Date(Date.UTC(year, month - 1, day)); let start; let end; if (kind === 'week') { start = new Date(date); start.setUTCDate(start.getUTCDate() - 7); end = new Date(date); end.setUTCDate(end.getUTCDate() - 1); } else { end = new Date(Date.UTC(year, month, 0)); start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1)); } const f = (d) => `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`; $('#periodPreview').textContent = kind === 'week' ? `Kỳ báo cáo: ${f(start)} - ${f(end)}` : `Kỳ báo cáo: tháng ${String(start.getUTCMonth() + 1).padStart(2, '0')}/${start.getUTCFullYear()}`; $('#anchorHelp').textContent = kind === 'week' ? 'Chọn thứ 7 làm mốc chốt tuần.' : 'Chọn ngày 1 của tháng cần xem.'; }
 
   async function loadSource(forceRefresh = false) {
@@ -353,31 +365,51 @@
     const period = popupPeriod();
     if (!period) return;
     const token = newId();
-    state.settingsDraft = { token, period, shippingSpeedRate: null, responseRate: null, previousShippingSpeedRate: null, previousResponseRate: null, evaluations: [], workItems: [], loading: true };
+    state.settingsDraft = { token, period, shippingSpeedRate: null, responseRate: null, previousShippingSpeedRate: null, previousResponseRate: null, previousWorkItems: [], evaluations: [], workItems: [], loading: true };
     $('#fastShippingRateInput').value = '';
     $('#quickResponseRateInput').value = '';
     $('#popupEvaluationTable').innerHTML = '<div class="empty-state">Đang tải dữ liệu kỳ đã chọn...</div>';
     $('#popupWorkTable').innerHTML = '<div class="empty-state">Đang tải dữ liệu kỳ đã chọn...</div>';
+    $('#popupReviewTable').innerHTML = '<div class="empty-state">Đang tải dữ liệu kỳ trước...</div>';
     try {
       const context = await api(`/api/manual-context?kind=${encodeURIComponent(period.kind)}&periodStart=${encodeURIComponent(period.startDate)}`);
       if (state.settingsDraft?.token !== token) return;
-      state.settingsDraft = { token, period, shippingSpeedRate: context.shippingSpeedRate, responseRate: context.responseRate, previousShippingSpeedRate: context.previousShippingSpeedRate, previousResponseRate: context.previousResponseRate, evaluations: context.evaluations || [], workItems: context.workItems || [], loading: false };
+      state.settingsDraft = { token, period, shippingSpeedRate: context.shippingSpeedRate, responseRate: context.responseRate, previousShippingSpeedRate: context.previousShippingSpeedRate, previousResponseRate: context.previousResponseRate, previousWorkItems: context.previousWorkItems || [], evaluations: context.evaluations || [], workItems: context.workItems || [], loading: false };
       $('#fastShippingRateInput').value = context.shippingSpeedRate ?? '';
       $('#quickResponseRateInput').value = context.responseRate ?? '';
-      renderPopupEvaluations(); renderPopupWork();
+      renderPopupReview(); renderPopupEvaluations(); renderPopupWork();
     } catch (error) {
       if (state.settingsDraft?.token !== token) return;
       state.settingsDraft.loading = false;
       $('#popupEvaluationTable').innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
       $('#popupWorkTable').innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+      $('#popupReviewTable').innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     }
   }
-  async function openSettings() {
+  async function showSettings() {
     const dialog = $('#settingsDialog');
     document.querySelector(`input[name="reportKind"][value="${state.kind}"]`).checked = true;
     $('#anchorDate').value = state.anchorDate;
     updatePeriodPreview(); dialog.showModal();
     await loadSettingsDraft();
+  }
+  async function openSettings() {
+    const response = await fetch('/auth/settings', { headers: { Accept: 'application/json' } });
+    if (response.ok) { await showSettings(); return; }
+    $('#settingsPasswordInput').value = '';
+    $('#settingsAuthError').hidden = true;
+    $('#settingsAuthDialog').showModal();
+    setTimeout(() => $('#settingsPasswordInput').focus(), 0);
+  }
+  async function submitSettingsAuth(event) {
+    event.preventDefault();
+    const errorNode = $('#settingsAuthError');
+    errorNode.hidden = true;
+    const response = await fetch('/auth/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('#settingsPasswordInput').value }) });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body.ok !== true) { errorNode.textContent = body.error || 'Mật khẩu quản trị không đúng.'; errorNode.hidden = false; return; }
+    $('#settingsAuthDialog').close();
+    await showSettings();
   }
   function applyManualRate(metric, value, previousOverride = null) {
     if (value === null || !Number.isFinite(value)) return { ...metric, value: null, change: null };
@@ -417,6 +449,9 @@
     $('#historyButton').addEventListener('click', openHistory); $('#closeHistoryButton').addEventListener('click', closeHistory); $('#overlay').addEventListener('click', closeHistory); $('#refreshButton').addEventListener('click', () => loadSource(true)); $('#saveButton').addEventListener('click', () => $('#settingsForm').requestSubmit()); $('#addEvaluationButton').addEventListener('click', addEvaluation); $('#addWorkButton').addEventListener('click', addWork); $('#settingsForm').addEventListener('submit', applySettings); $('#anchorDate').addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }); $('#periodPickerButton').addEventListener('click', () => togglePeriodPicker());
     document.querySelectorAll('input[name="reportKind"]').forEach((input) => input.addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }));
     ['#fastShippingRateInput', '#quickResponseRateInput'].forEach((selector) => $(selector).addEventListener('input', syncDraftRates));
+    $('#settingsAuthForm').addEventListener('submit', submitSettingsAuth);
+    $('#closeSettingsAuth').addEventListener('click', () => $('#settingsAuthDialog').close());
+    $('#cancelSettingsAuth').addEventListener('click', () => $('#settingsAuthDialog').close());
     document.querySelectorAll('[data-history-kind]').forEach((tab) => tab.addEventListener('click', () => { document.querySelectorAll('[data-history-kind]').forEach((item) => item.classList.toggle('is-active', item === tab)); loadHistory(tab.dataset.historyKind); }));
     document.addEventListener('click', (event) => { if (!event.target.closest('.period-toolbar')) togglePeriodPicker(false); });
     window.addEventListener('popstate', () => { const route = periodFromPath(); if (route) selectPeriod(route.kind, route.anchorDate, false); });
