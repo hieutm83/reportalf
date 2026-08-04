@@ -55,9 +55,22 @@ function format(value: unknown, kind: MetricFormat): string {
 
 function change(current: unknown, previous: unknown): string {
   const value = nullable(current); const old = nullable(previous);
-  if (value === null || old === null || old === 0) return 'không có dữ liệu kỳ trước';
+  if (value === null || old === null || old === 0) return 'Không có dữ liệu kỳ trước';
   const delta = (value - old) / Math.abs(old);
   return `${delta >= 0 ? '↑' : '↓'} ${vi(Math.abs(delta) * 100)}%`;
+}
+
+function compactMoney(value: unknown): string {
+  const amount = numberValue(value); const abs = Math.abs(amount);
+  if (abs >= 1_000_000_000) return `${vi(amount / 1_000_000_000)}B`;
+  if (abs >= 1_000_000) return `${vi(amount / 1_000_000)}M`;
+  if (abs >= 1_000) return `${vi(amount / 1_000)}K`;
+  return vi(amount, 0);
+}
+
+function sampleCell(current: unknown, previous: unknown, kind: MetricFormat): string {
+  const formatted = kind === 'money' ? compactMoney(current) : format(current, kind);
+  return `${formatted} (${change(current, previous)})`;
 }
 
 function cell(current: unknown, previous: unknown, kind: MetricFormat): string {
@@ -277,6 +290,94 @@ async function productVideos(source: { base: string; cookie: string }, ads: any,
   return result;
 }
 
+function sampleRevenue(revenue: any): string[] {
+  const current = revenue?.totals || {}; const previous = revenue?.previousTotals || {};
+  const attribution = revenue?.gmvAttribution || {}; const oldAttribution = revenue?.previousGmvAttribution || {};
+  const total = numberValue(attribution.attributedTotal || current.grossRevenue);
+  const contribution = (value: unknown): string => percent(total ? numberValue(value) / total : 0);
+  const rows: Array<Array<unknown>> = [];
+  for (const [key, label] of [['affiliate', 'Liên kết'], ['seller', 'Người bán']] as const) {
+    const group = attribution[key] || {}; const oldGroup = oldAttribution[key] || {};
+    const groupTotal = numberValue(group.total ?? (numberValue(group.live) + numberValue(group.video) + numberValue(group.productCard)));
+    const oldGroupTotal = numberValue(oldGroup.total ?? (numberValue(oldGroup.live) + numberValue(oldGroup.video) + numberValue(oldGroup.productCard)));
+    rows.push([`${label} (Đóng góp ${contribution(groupTotal)})`, vi(groupTotal, 0), change(groupTotal, oldGroupTotal)]);
+    for (const [child, childLabel] of [['live', 'LIVE'], ['video', 'Video'], ['productCard', 'Thẻ sản phẩm']] as const) {
+      const value = numberValue(group[child]);
+      rows.push([`› ${childLabel} (Đóng góp ${contribution(value)})`, vi(value, 0), change(value, oldGroup[child])]);
+    }
+  }
+  return [
+    'Nhóm A — Phân tích hiệu suất theo kênh & theo sản phẩm',
+    `Tổng GMV: ${sampleCell(current.grossRevenue, previous.grossRevenue, 'money')}`,
+    `Tổng đơn hàng: ${sampleCell(current.orders, previous.orders, 'number')}`,
+    `AOV: ${sampleCell(current.aov, previous.aov, 'money')}`,
+    `Tỉ lệ khách mua lại: ${sampleCell(current.repurchaseRate, previous.repurchaseRate, 'percent')}`,
+    '', ...table(['Nguồn', 'GMV', 'So với kỳ trước'], rows), ''
+  ];
+}
+
+function sampleAds(ads: any, previousAds: any, summaries: any): string[] {
+  const totals = ads?.totals || {}; const old = previousAds?.totals || {};
+  const source = summaries?.costAttribution || {}; const totalCost = numberValue(source.total);
+  const definitions = [['productCard', 'Thẻ sản phẩm'], ['seller', 'Người bán'], ['affiliate', 'Affiliate']] as const;
+  const rows = definitions.map(([key, label]) => {
+    const item = source.metrics?.[key] || {}; const cost = numberValue(item.cost); const revenue = numberValue(item.grossRevenue);
+    const impressions = numberValue(item.impressions); const clicks = numberValue(item.clicks); const orders = numberValue(item.orders);
+    return [`${label} (Đóng góp ${percent(totalCost ? cost / totalCost : 0)})`, compactMoney(cost), compactMoney(revenue),
+      vi(cost ? revenue / cost : 0), vi(impressions, 0), vi(clicks, 0), percent(impressions ? clicks / impressions : 0),
+      vi(orders, 0), percent(clicks ? orders / clicks : 0)];
+  });
+  return [
+    'Nhóm B — Hiệu quả quảng cáo',
+    `Cost: ${sampleCell(totals.cost, old.cost, 'money')}`,
+    `Cost per order: ${sampleCell(totals.costPerOrder, old.costPerOrder, 'money')}`,
+    `ROI: ${sampleCell(totals.roi, old.roi, 'number')}`,
+    '', ...table(['Nguồn', 'COST', 'Gross revenue', 'ROI', 'Impressions', 'Click', 'CTR', 'ORDER', 'CR'], rows), '', ''
+  ];
+}
+
+function sampleOperations(operations: any): string[] {
+  const totals = operations?.totals || {}; const previous = operations?.previous || {};
+  const reasonRows = (items: any[]) => (items || []).map((item) => [item.label || item.reason || 'Không xác định', vi(numberValue(item.count), 0)]);
+  const cancel = reasonRows(operations?.cancelReasons); const returns = reasonRows(operations?.returnReasons);
+  return [
+    'Nhóm C — Đơn Hoàn Hủy & Logistics',
+    `Tỷ lệ hủy đơn: ${sampleCell(totals.cancellationRate, previous.cancellationRate, 'percent')}`,
+    `Tỷ lệ trả hàng / hoàn tiền: ${sampleCell(totals.returnRate, previous.returnRate, 'percent')}`,
+    `Tỷ lệ đơn huỷ do sự cố logistics: ${sampleCell(totals.logisticsCancellationRate, previous.logisticsCancellationRate, 'percent')}`,
+    '', 'Cơ cấu lý do hủy đơn',
+    ...(cancel.length ? table(['Lý do', 'Số đơn'], cancel) : ['_Không có đơn hủy trong kỳ._']),
+    '', 'Lý do trả hàng & hoàn tiền',
+    ...(returns.length ? table(['Lý do', 'Số đơn'], returns) : ['_Không có đơn trả hàng/hoàn tiền trong kỳ._']),
+    ''
+  ];
+}
+
+function sampleProducts(productData: any): string[] {
+  const current = productData?.current || {}; const previous = productData?.previous || {};
+  const oldProducts = new Map<string, any>((previous.products || []).map((item: any) => [String(item.id), item]));
+  const total = current.total || {}; const oldTotal = previous.total || {};
+  const lines = [
+    'Nhóm D — Phân tích sản phẩm',
+    `Lượt hiển thị sản phẩm: ${sampleCell(total.impressions, oldTotal.impressions, 'number')}`,
+    `Lượt nhấp vào sản phẩm: ${sampleCell(total.clicks, oldTotal.clicks, 'number')}`,
+    `Đơn hàng SKU: ${sampleCell(total.skuOrders, oldTotal.skuOrders, 'number')}`,
+    ''
+  ];
+  for (const [key, label] of PRODUCT_CHANNELS) {
+    const products = (current.products || []).map((item: any) => ({
+      item, value: item.channels?.[key] || {}, old: oldProducts.get(String(item.id))?.channels?.[key] || {}
+    })).filter(({ value }: any) => PRODUCT_METRICS.some(([field]) => numberValue(productMetricValue(value, field)) !== 0));
+    lines.push(`**${label}**`);
+    if (!products.length) lines.push('_Không có sản phẩm phát sinh số liệu trong kỳ._', '');
+    else lines.push(...table(['Sản phẩm', ...PRODUCT_METRICS.map(([, title]) => title)], products.map(({ item, value, old }: any) => [
+      `${item.title || `Sản phẩm ${item.id}`} — ID: ${item.id}`,
+      ...PRODUCT_METRICS.map(([field, , kind]) => sampleCell(productMetricValue(value, field), productMetricValue(old, field), kind))
+    ])), '');
+  }
+  return lines;
+}
+
 export async function createMarkdownExport(env: Env, period: ReportPeriod): Promise<{ filename: string; markdown: string }> {
   const source = await sourceLogin(env);
   const state = await named('Trạng thái dashboard', sourceRequest<any>(source, '/api/state', 'GET'));
@@ -285,36 +386,21 @@ export async function createMarkdownExport(env: Env, period: ReportPeriod): Prom
   const sellerScope = { startDate: period.startDate, endDate: period.endDate };
   const previous = previousRange(period);
   const previousReportScope = { advertiserId: state.defaultAdvertiserId, storeId: state.defaultStoreCode, ...previous };
-  const [products, ads, previousAds, operations, revenue, customerSupport] = await Promise.all([
+  const [products, ads, previousAds, operations, revenue] = await Promise.all([
     sourceWithRetry<any>(source, 'Phân tích hiệu suất', '/api/product-analysis', sellerScope, (value) => Boolean(value?.current?.products?.length)),
     sourceWithRetry<any>(source, 'Hiệu quả quảng cáo', '/api/report', reportScope, (value) => Boolean(value?.products?.length || numberValue(value?.totals?.cost))),
     sourceWithRetry<any>(source, 'Hiệu quả quảng cáo kỳ trước', '/api/report', previousReportScope, (value) => Boolean(value?.products?.length || numberValue(value?.totals?.cost))),
     sourceWithRetry<any>(source, 'Đơn Hoàn Hủy & Logistics', '/api/operations-analysis', sellerScope, (value) => Boolean(value?.totals)),
-    sourceWithRetry<any>(source, 'Phân Tích Doanh Thu', '/api/revenue-analysis', sellerScope, (value) => Boolean(value?.totals)),
-    sourceWithRetry<any>(source, 'Vận hành CSKH', '/api/customer-service-analysis', sellerScope, (value) => Boolean(value?.current)).catch((error) => ({ error: error instanceof Error ? error.message : String(error) }))
+    sourceWithRetry<any>(source, 'Phân Tích Doanh Thu', '/api/revenue-analysis', sellerScope, (value) => Boolean(value?.totals))
   ]);
-  const [summaries, previousSummaries] = await Promise.all([
-    sourceWithRetry<any>(source, 'Nguồn quảng cáo', '/api/creative-summaries', {
+  const summaries = await sourceWithRetry<any>(source, 'Nguồn quảng cáo', '/api/creative-summaries', {
     ...reportScope, products: ads.products || [], allContexts: ads.creativeContexts || []
-    }, (value) => Boolean(numberValue(value?.costAttribution?.total))),
-    sourceWithRetry<any>(source, 'Nguồn quảng cáo kỳ trước', '/api/creative-summaries', {
-      ...previousReportScope, products: previousAds.products || [], allContexts: previousAds.creativeContexts || []
-    }, (value) => Boolean(numberValue(value?.costAttribution?.total)))
-  ]);
-  const [videos, previousVideos] = await Promise.all([
-    productVideos(source, ads, period),
-    productVideos(source, previousAds, { ...period, startDate: previous.startDate, endDate: previous.endDate })
-  ]);
-  const warnings: string[] = [];
-  if (!numberValue(ads?.totals?.cost) && !(ads?.products || []).length) warnings.push('TikTok Ads MCP vẫn trả về 0 sau khi hệ thống đã gọi lại API; phần quảng cáo không có dữ liệu để xuất.');
-  if (customerSupport?.error) warnings.push(`Không lấy được dữ liệu CSKH: ${customerSupport.error}`);
+    }, (value) => Boolean(numberValue(value?.costAttribution?.total)));
   const markdown = [
-    `# Dữ liệu ${period.title}`,
-    '', `- Kỳ báo cáo: ${period.startDate} → ${period.endDate}`,
-    `- Xuất lúc: ${new Intl.DateTimeFormat('vi-VN', { timeZone: env.TIMEZONE || 'Asia/Bangkok', dateStyle: 'short', timeStyle: 'medium' }).format(new Date())}`,
-    ...(warnings.length ? ['', '## Cảnh báo dữ liệu', '', ...warnings.map((warning) => `- ${warning}`)] : []),
-    '', ...productPerformance(products), ...adsPerformance(ads, previousAds, summaries, previousSummaries, videos, previousVideos),
-    ...cancellationBreakdown(operations), ...revenueAnalysis(revenue), ...customerService(customerSupport)
+    ...sampleRevenue(revenue),
+    ...sampleAds(ads, previousAds, summaries),
+    ...sampleOperations(operations),
+    ...sampleProducts(products)
   ].join('\n');
   const slug = period.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   return { filename: `${slug || 'bao-cao-du-lieu'}.md`, markdown };
