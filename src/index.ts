@@ -1,6 +1,6 @@
-import type { Env, ReportKind, ReportSnapshot } from './types';
+import type { Env, ReportKind, ReportRecord, ReportSnapshot, WorkItem } from './types';
 import { errorMessage, json, readJson } from './json';
-import { latestMonthAnchor, latestWeekAnchor, parseDate, reportPeriod } from './periods';
+import { latestMonthAnchor, latestWeekAnchor, parseDate, reportPeriod, shiftDate } from './periods';
 import { getReport, getReportForPeriod, listReports, saveReport } from './supabase';
 import { loadSourceReport } from './source-dashboard';
 
@@ -13,6 +13,60 @@ function hasEncodingCorruption(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(hasEncodingCorruption);
   if (value && typeof value === 'object') return Object.values(value as Record<string, unknown>).some(hasEncodingCorruption);
   return false;
+}
+
+function needsSourceComparisonRepair(snapshot: ReportSnapshot | null): boolean {
+  const rows = snapshot?.sources || [];
+  if (!rows.length) return false;
+  return rows.some((row) => !row.change) || rows.every((row) => row.change?.gmv === null || row.change?.gmv === undefined);
+}
+
+function preserveManualOperationMetrics(snapshot: ReportSnapshot, cached: ReportRecord | null): ReportSnapshot {
+  if (!cached) return snapshot;
+  for (const key of ['fastShippingRate', 'quickResponseRate'] as const) {
+    const value = cached.operations[key]?.value;
+    if (value === null || value === undefined) continue;
+    const previous = snapshot.operations[key]?.previous;
+    snapshot.operations[key] = {
+      ...snapshot.operations[key],
+      value,
+      change: previous !== null && previous !== undefined && previous !== 0 ? (value - previous) / Math.abs(previous) : null
+    };
+  }
+  return snapshot;
+}
+
+async function withPreviousWorkItems(env: Env, record: ReportRecord): Promise<ReportRecord> {
+  if (record.period.kind !== 'week') return { ...record, previousWorkItems: [] };
+  const previousStart = shiftDate(record.period.startDate, -7);
+  const previous = await getReportForPeriod(env, 'week', previousStart);
+  return { ...record, previousWorkItems: previous?.workItems || [] };
+}
+
+async function manualContext(env: Env, kind: ReportKind, periodStart: string): Promise<Record<string, unknown>> {
+  const current = await getReportForPeriod(env, kind, periodStart);
+  const previous = kind === 'week' ? await getReportForPeriod(env, 'week', shiftDate(periodStart, -7)) : null;
+  return {
+    weekStartDate: periodStart,
+    shippingSpeedRate: current?.operations.fastShippingRate.value ?? null,
+    responseRate: current?.operations.quickResponseRate.value ?? null,
+    evaluations: current?.evaluations || [],
+    workItems: current?.workItems || [],
+    previousWorkItems: previous?.workItems || []
+  };
+}
+
+async function updatePreviousWorkItem(env: Env, currentWeekStartDate: string, taskId: string, updates: Partial<WorkItem>): Promise<WorkItem> {
+  const previousStart = shiftDate(parseDate(currentWeekStartDate), -7);
+  const previous = await getReportForPeriod(env, 'week', previousStart);
+  if (!previous) throw new Error('Không tìm thấy báo cáo tuần trước.');
+  const index = previous.workItems.findIndex((item) => item.id === taskId);
+  if (index < 0) throw new Error('Không tìm thấy công việc tuần trước.');
+  const item = { ...previous.workItems[index], ...updates };
+  const workItems = previous.workItems.map((row, rowIndex) => rowIndex === index ? item : row);
+  const { id: _id, review, evaluations, workItems: _workItems, previousWorkItems: _previousWorkItems, createdAt: _createdAt, updatedAt: _updatedAt, ...snapshot } = previous;
+  await saveReport(env, snapshot, { review, evaluations, workItems });
+  return item;
 }
 
 async function api(request: Request, env: Env, url: URL): Promise<Response> {
@@ -33,20 +87,38 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
   if (request.method === 'GET' && url.pathname.startsWith('/api/reports/')) {
     const id = decodeURIComponent(url.pathname.slice('/api/reports/'.length));
     const record = await getReport(env, id);
-    return record ? json({ ok: true, data: record }) : json({ ok: false, error: 'Không tìm thấy báo cáo.' }, 404);
+    return record ? json({ ok: true, data: await withPreviousWorkItems(env, record) }) : json({ ok: false, error: 'Không tìm thấy báo cáo.' }, 404);
+  }
+  if (request.method === 'GET' && url.pathname === '/api/manual-context') {
+    const kind = url.searchParams.get('kind');
+    if (!isKind(kind)) return json({ ok: false, error: 'Loại báo cáo không hợp lệ.' }, 400);
+    const periodStart = parseDate(url.searchParams.get('periodStart'));
+    return json({ ok: true, data: await manualContext(env, kind, periodStart) });
+  }
+  if (request.method === 'PATCH' && url.pathname === '/api/previous-work-item') {
+    const input = await readJson<{ currentWeekStartDate?: string; taskId?: string; status?: string; result?: string }>(request);
+    const currentWeekStartDate = parseDate(input.currentWeekStartDate);
+    const taskId = String(input.taskId || '');
+    if (!taskId) return json({ ok: false, error: 'Thiếu mã công việc.' }, 400);
+    const allowed = ['', 'Đạt', 'Chưa đạt', 'Trễ hạn'];
+    if (input.status !== undefined && !allowed.includes(String(input.status))) return json({ ok: false, error: 'Trạng thái không hợp lệ.' }, 400);
+    const updates: Partial<WorkItem> = {};
+    if (input.status !== undefined) updates.status = String(input.status) as WorkItem['status'];
+    if (input.result !== undefined) updates.result = String(input.result);
+    return json({ ok: true, data: await updatePreviousWorkItem(env, currentWeekStartDate, taskId, updates) });
   }
   if (request.method === 'POST' && url.pathname === '/api/source-report') {
     const input = await readJson<{ kind?: string; anchorDate?: string; forceRefresh?: boolean }>(request);
     if (!isKind(input.kind)) return json({ ok: false, error: 'Loại báo cáo không hợp lệ.' }, 400);
     const period = reportPeriod(input.kind, parseDate(input.anchorDate));
     const cached = await getReportForPeriod(env, period.kind, period.startDate);
-    const cacheNeedsRepair = cached ? hasEncodingCorruption(cached) : false;
-    if (cached && cached.dataAvailable && input.forceRefresh !== true && !cacheNeedsRepair) return json({ ok: true, data: cached });
-    const snapshot = await loadSourceReport(env, period);
+    const cacheNeedsRepair = cached ? hasEncodingCorruption(cached) || needsSourceComparisonRepair(cached) : false;
+    if (cached && cached.dataAvailable && input.forceRefresh !== true && !cacheNeedsRepair) return json({ ok: true, data: await withPreviousWorkItems(env, cached) });
+    const snapshot = preserveManualOperationMetrics(await loadSourceReport(env, period), cached);
     const saved = await saveReport(env, snapshot, {
       review: cached?.review || [], evaluations: cached?.evaluations || [], workItems: cached?.workItems || []
     });
-    return json({ ok: true, data: saved });
+    return json({ ok: true, data: await withPreviousWorkItems(env, saved) });
   }
   if (request.method === 'POST' && url.pathname === '/api/reports') {
     const input = await readJson<{ snapshot?: ReportSnapshot; review?: any[]; evaluations?: any[]; workItems?: any[] }>(request);
@@ -56,16 +128,19 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
       evaluations: Array.isArray(input.evaluations) ? input.evaluations : [],
       workItems: Array.isArray(input.workItems) ? input.workItems : []
     });
-    return json({ ok: true, data: record });
+    return json({ ok: true, data: await withPreviousWorkItems(env, record) });
   }
   return json({ ok: false, error: 'API route not found.' }, 404);
 }
 
 async function assets(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
-  const response = await env.ASSETS.fetch(new Request(url.toString(), request));
+  const isReportRoute = /^\/tuan-\d{1,2}-\d{4}\/?$/.test(url.pathname);
+  const assetUrl = new URL(url);
+  if (isReportRoute) assetUrl.pathname = '/';
+  const response = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
   const headers = new Headers(response.headers);
-  if (url.pathname === '/' || url.pathname.endsWith('.html')) {
+  if (isReportRoute || url.pathname === '/' || url.pathname.endsWith('.html')) {
     headers.set('Content-Type', 'text/html; charset=UTF-8');
     headers.set('Cache-Control', 'no-store');
   }

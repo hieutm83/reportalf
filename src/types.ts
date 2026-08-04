@@ -69,6 +69,7 @@ export interface SourceRow {
   clicks: number;
   ctr: number | null;
   ctor: number | null;
+  change: Record<string, number | null>;
 }
 
 export interface ProductRow {
@@ -91,6 +92,8 @@ export interface WorkItem {
   kpi: string;
   owner: string;
   deadline: string;
+  status?: 'Đạt' | 'Chưa đạt' | 'Trễ hạn' | '';
+  result?: string;
 }
 
 export interface ReviewItem {
@@ -106,6 +109,7 @@ export interface ReportRecord extends ReportSnapshot {
   review: ReviewItem[];
   evaluations: Array<{ id: string; segment: string; situation: string; cause: string; action: string }>;
   workItems: WorkItem[];
+  previousWorkItems?: WorkItem[];
   createdAt: string;
   updatedAt: string;
 }

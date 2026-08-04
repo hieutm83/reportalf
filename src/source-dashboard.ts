@@ -102,22 +102,42 @@ async function bundle(source: { base: string; cookie: string }, state: any, star
   return { revenue, ads, operations, finance, products };
 }
 
-function sourceRows(current: any, totalGmv: number): SourceRow[] {
-  const channels = current?.channels || current?.current?.channels || {};
+function sourceRows(current: any, totalGmv: number, previous: any = null, previousTotalGmv = 0): SourceRow[] {
+  const channels = current?.channels || current?.current?.channels || current?.previous?.channels || {};
+  const previousChannels = previous?.channels || previous?.current?.channels || previous?.previous?.channels || {};
+  const resolvedPreviousTotalGmv = previousTotalGmv || number(previous?.total?.gmv || previous?.current?.total?.gmv || previous?.previous?.total?.gmv);
+  const change = (value: number | null, oldValue: number | null): number | null => value !== null && oldValue !== null && oldValue !== 0 ? (value - oldValue) / Math.abs(oldValue) : null;
   const definitions = [
     ['affiliate', 'Liên kết / KOC'],
     ['sellerProductCard', 'Thẻ sản phẩm'],
     ['sellerVideo', 'Video người bán'],
     ['sellerLive', 'Livestream người bán']
   ] as const;
+  const channelTotalGmv = definitions.reduce((sum, [key]) => sum + number(channels[key]?.gmv), 0);
+  const previousChannelTotalGmv = definitions.reduce((sum, [key]) => sum + number(previousChannels[key]?.gmv), 0);
+  const resolvedTotalGmv = channelTotalGmv || totalGmv;
+  const resolvedPreviousGmv = previousChannelTotalGmv || resolvedPreviousTotalGmv;
   return definitions.map(([key, label]) => {
     const value = channels[key] || {};
     const gmv = number(value.gmv);
     const impressions = number(value.impressions);
     const clicks = number(value.clicks);
     const orders = number(value.skuOrders || value.orders);
-    return { key, label, gmv, contribution: totalGmv ? gmv / totalGmv : 0, impressions, clicks,
-      ctr: impressions ? clicks / impressions : null, ctor: clicks ? orders / clicks : null };
+    const oldValue = previousChannels[key] || {};
+    const oldGmv = number(oldValue.gmv);
+    const oldImpressions = number(oldValue.impressions);
+    const oldClicks = number(oldValue.clicks);
+    const oldOrders = number(oldValue.skuOrders || oldValue.orders);
+    const oldCtr = oldImpressions ? oldClicks / oldImpressions : null;
+    const oldCtor = oldClicks ? oldOrders / oldClicks : null;
+    const oldContribution = resolvedPreviousGmv ? oldGmv / resolvedPreviousGmv : null;
+    return { key, label, gmv, contribution: resolvedTotalGmv ? gmv / resolvedTotalGmv : 0, impressions, clicks,
+      ctr: impressions ? clicks / impressions : null, ctor: clicks ? orders / clicks : null,
+      change: {
+        gmv: change(gmv, oldGmv), contribution: change(resolvedTotalGmv ? gmv / resolvedTotalGmv : 0, oldContribution),
+        impressions: change(impressions, oldImpressions), clicks: change(clicks, oldClicks),
+        ctr: change(impressions ? clicks / impressions : null, oldCtr), ctor: change(clicks ? orders / clicks : null, oldCtor)
+      } };
   });
 }
 
@@ -190,7 +210,7 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
   const currentResponse24h = percentValue(currentOps.responseWithin24Hours, currentOps.response24hRate, currentOps.customerServiceResponseRate, currentOps.responseRate);
   const previousResponse24h = percentValue(oldOps.responseWithin24Hours, oldOps.response24hRate, oldOps.customerServiceResponseRate, oldOps.responseRate);
   const warnings: string[] = [];
-  if (currentOtdr === null) warnings.push('OTDR chưa được trả về từ API nguồn (dimension Hoàn thiện đơn hàng và kho vận, evaluate_duration_days=30).');
+  if (currentOtdr === null) warnings.push('Tỷ lệ gửi hàng nhanh chưa được trả về từ API nguồn (dimension Hoàn thiện đơn hàng và kho vận, evaluate_duration_days=30).');
   if (currentResponse24h === null) warnings.push('Tỷ lệ phản hồi trong 24 giờ chưa được trả về từ API customer service performance.');
   const imageCatalog = new Map<string, string>();
   for (const item of payload(current.ads)?.products || []) {
@@ -219,6 +239,6 @@ export async function loadSourceReport(env: Env, period: ReportPeriod): Promise<
       skuOrders: metric(currentTotal.skuOrders, oldTotal.skuOrders), ctr: metric(scaled(currentTotal.ctr, 100), scaled(oldTotal.ctr, 100)),
       ctor: metric(scaled(currentTotal.ctor, 100), scaled(oldTotal.ctor, 100))
     },
-    finance, sources: sourceRows(current.products, finance.gmv), products: productRows(current.products, old.products, imageCatalog)
+    finance, sources: sourceRows(current.products, finance.gmv, old.products, previousFinance.gmv), products: productRows(current.products, old.products, imageCatalog)
   };
 }

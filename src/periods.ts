@@ -25,13 +25,23 @@ function dateLabel(date: string): string {
   return `${date.slice(8, 10)}/${date.slice(5, 7)}/${date.slice(0, 4)}`;
 }
 
+export function isoWeek(date: string): { week: number; year: number } {
+  const value = new Date(`${parseDate(date)}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + 4 - (value.getUTCDay() || 7));
+  const year = value.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const week = Math.ceil((((value.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return { week, year };
+}
+
 export function reportPeriod(kind: ReportKind, anchorDate: string): ReportPeriod {
   const anchor = parseDate(anchorDate);
   if (kind === 'week') {
     // Saturday is the report anchor. The reported window is Saturday-Friday.
     const startDate = shiftDate(anchor, -7);
     const endDate = shiftDate(anchor, -1);
-    return { kind, anchorDate: anchor, startDate, endDate, title: `Tuần ${dateLabel(startDate)} - ${dateLabel(endDate)}` };
+    const { week } = isoWeek(endDate);
+    return { kind, anchorDate: anchor, startDate, endDate, title: `Tuần ${week} ∙ ${dateLabel(startDate)} - ${dateLabel(endDate)}` };
   }
   const firstDay = `${anchor.slice(0, 7)}-01`;
   const previousDay = shiftDate(firstDay, -1);

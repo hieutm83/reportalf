@@ -1,9 +1,10 @@
 (() => {
   const $ = (selector) => document.querySelector(selector);
-  const state = { kind: 'week', anchorDate: '', period: null, snapshot: null, id: '', review: [], evaluations: [], workItems: [], historyKind: 'week' };
+  const state = { kind: 'week', anchorDate: '', period: null, snapshot: null, id: '', review: [], evaluations: [], workItems: [], historyKind: 'week', settingsDraft: null };
   const colors = ['#2563eb', '#7c3aed', '#f59e0b', '#ec4899', '#22c55e'];
 
   const emptyMetric = () => ({ value: null, previous: null, change: null });
+  const newId = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const emptySnapshot = (period) => ({ period, generatedAt: '', dataAvailable: false, warnings: [],
     core: { gmv: emptyMetric(), orders: emptyMetric(), aov: emptyMetric(), adsCostPerOrder: emptyMetric() },
     operations: { cancellationRate: emptyMetric(), returnRate: emptyMetric(), fastShippingRate: emptyMetric(), quickResponseRate: emptyMetric() },
@@ -36,6 +37,37 @@
   function trendClass(value) { return value === null || value === undefined ? 'trend-flat' : value >= 0 ? 'trend-up' : 'trend-down'; }
   function valueForMetric(metric, kind) { const value = metric?.value; if (kind === 'money') return formatMoney(value); if (kind === 'percent') return formatPercent(value); return formatNumber(value); }
   function periodLabel(period) { return period ? period.title : 'Đang tải kỳ báo cáo...'; }
+  function isoWeekInfo(dateString) {
+    const date = new Date(`${dateString}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
+    const year = date.getUTCFullYear();
+    const yearStart = new Date(Date.UTC(year, 0, 1));
+    return { week: Math.ceil((((date - yearStart) / 86400000) + 1) / 7), year };
+  }
+  function weekAnchorFromRoute(week, year) {
+    const januaryFourth = new Date(Date.UTC(year, 0, 4));
+    const weekOneMonday = new Date(januaryFourth);
+    weekOneMonday.setUTCDate(januaryFourth.getUTCDate() - ((januaryFourth.getUTCDay() + 6) % 7));
+    const friday = new Date(weekOneMonday);
+    friday.setUTCDate(weekOneMonday.getUTCDate() + ((week - 1) * 7) + 4);
+    const info = isoWeekInfo(friday.toISOString().slice(0, 10));
+    if (info.week !== week || info.year !== year) return null;
+    const anchor = new Date(friday); anchor.setUTCDate(friday.getUTCDate() + 1);
+    return anchor.toISOString().slice(0, 10);
+  }
+  function periodFromPath() {
+    const match = window.location.pathname.match(/^\/tuan-(\d{1,2})-(\d{4})\/?$/);
+    if (!match) return null;
+    const week = Number(match[1]); const year = Number(match[2]);
+    const anchorDate = week >= 1 && week <= 53 ? weekAnchorFromRoute(week, year) : null;
+    return anchorDate ? { kind: 'week', anchorDate } : null;
+  }
+  function syncPeriodPath(period, replace = false) {
+    const info = period?.kind === 'week' ? isoWeekInfo(period.endDate) : null;
+    const path = info ? `/tuan-${info.week}-${info.year}` : '/';
+    if (window.location.pathname === path) return;
+    window.history[replace ? 'replaceState' : 'pushState']({}, '', path);
+  }
   function makePeriod(kind, anchorDate) {
     const [year, month, day] = String(anchorDate).split('-').map(Number);
     const anchor = new Date(Date.UTC(year, month - 1, day));
@@ -43,7 +75,8 @@
       const start = new Date(anchor); start.setUTCDate(start.getUTCDate() - 7);
       const end = new Date(anchor); end.setUTCDate(end.getUTCDate() - 1);
       const iso = (date) => date.toISOString().slice(0, 10);
-      return { kind, anchorDate, startDate: iso(start), endDate: iso(end), title: `Tuần ${formatDate(iso(start))} - ${formatDate(iso(end))}` };
+      const endDate = iso(end); const { week } = isoWeekInfo(endDate);
+      return { kind, anchorDate, startDate: iso(start), endDate, title: `Tuần ${week} ∙ ${formatDate(iso(start))} - ${formatDate(endDate)}` };
     }
     const end = new Date(Date.UTC(year, month - 1, 0));
     const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1));
@@ -87,7 +120,7 @@
     ].join('');
     $('#operationMetrics').innerHTML = [
       renderMetricCard('Tỷ lệ hủy đơn', snapshot.operations.cancellationRate, 'percent', true), renderMetricCard('Tỷ lệ trả hàng / hoàn tiền', snapshot.operations.returnRate, 'percent', true),
-      renderMetricCard('OTDR', snapshot.operations.fastShippingRate, 'percent', true), renderMetricCard('Tỷ lệ phản hồi trong 24 giờ', snapshot.operations.quickResponseRate, 'percent', true)
+      renderMetricCard('Tỷ lệ gửi hàng nhanh', snapshot.operations.fastShippingRate, 'percent', true), renderMetricCard('Tỷ lệ phản hồi', snapshot.operations.quickResponseRate, 'percent', true)
     ].join('');
   }
 
@@ -110,7 +143,7 @@
     const items = [['Tổng phí & thuế', finance.feeTax], ['Hoa hồng KOC / Affiliate', finance.affiliate], ['Chi phí Ads', finance.ads], ['Hoàn tiền', finance.refunds], ['Còn lại (Lợi nhuận gộp ước tính)', finance.grossProfit]];
     const total = items.reduce((sum, item) => sum + Math.max(0, Number(item[1]) || 0), 0) || 1;
     const donut = $('#financeDonut');
-    const radius = 84;
+    const radius = 72;
     const circumference = 2 * Math.PI * radius;
     let offset = 0;
     const segments = items.map(([label, value], index) => {
@@ -124,6 +157,8 @@
       return segment;
     }).join('');
     donut.innerHTML = `<svg class="donut-svg" viewBox="0 0 200 200" role="img" aria-label="Cơ cấu chi phí">${segments}</svg><div class="finance-tooltip" hidden></div>`;
+    const legend = $('#financeLegend');
+    if (legend) legend.innerHTML = items.map(([label], index) => `<div class="legend-row"><span class="legend-swatch" style="background:${colors[index] || '#22c55e'}"></span><span>${escapeHtml(repairText(label))}</span></div>`).join('');
     const tooltip = donut.querySelector('.finance-tooltip');
     const showTooltip = (event, index) => {
       const [label, value] = items[index];
@@ -152,7 +187,7 @@
   function changeMarkup(value) { return `<small class="change-note ${trendClass(value)}">${escapeHtml(formatChange(value))}</small>`; }
   function renderSources() {
     const rows = state.snapshot?.sources || [];
-    $('#sourcesTable').innerHTML = rows.length ? rows.map((row) => `<tr><td class="table-primary">${escapeHtml(repairText(row.label))}</td><td>${formatMoney(row.gmv)}</td><td>${formatPercent(row.contribution * 100)}</td><td>${formatNumber(row.impressions)}</td><td>${formatNumber(row.clicks)}</td><td>${formatPercent(row.ctr === null ? null : row.ctr * 100)}</td><td>${formatPercent(row.ctor === null ? null : row.ctor * 100)}</td></tr>`).join('') : `<tr><td colspan="7"><div class="empty-state">Chưa có dữ liệu nguồn trong kỳ này.</div></td></tr>`;
+    $('#sourcesTable').innerHTML = rows.length ? rows.map((row) => `<tr><td class="table-primary">${escapeHtml(repairText(row.label))}</td><td>${formatMoney(row.gmv)}${changeMarkup(row.change?.gmv)}</td><td>${formatPercent(row.contribution * 100)}${changeMarkup(row.change?.contribution)}</td><td>${formatNumber(row.impressions)}${changeMarkup(row.change?.impressions)}</td><td>${formatNumber(row.clicks)}${changeMarkup(row.change?.clicks)}</td><td>${formatPercent(row.ctr === null ? null : row.ctr * 100)}${changeMarkup(row.change?.ctr)}</td><td>${formatPercent(row.ctor === null ? null : row.ctor * 100)}${changeMarkup(row.change?.ctor)}</td></tr>`).join('') : `<tr><td colspan="7"><div class="empty-state">Chưa có dữ liệu nguồn trong kỳ này.</div></td></tr>`;
   }
   function renderProducts() {
     const rows = state.snapshot?.products || [];
@@ -162,18 +197,28 @@
   function inputCell(value, field, id, area = false) { return area ? `<textarea data-field="${field}" data-id="${id}" rows="2">${escapeHtml(value)}</textarea>` : `<input data-field="${field}" data-id="${id}" value="${escapeHtml(value)}">`; }
   function renderReview() {
     const rows = state.review || [];
-    $('#reviewTable').innerHTML = `<div class="edit-grid"><div class="edit-head">STT</div><div class="edit-head">Công việc kỳ trước</div><div class="edit-head">Trạng thái</div><div class="edit-head">Đánh giá kết quả / Tác động</div><div class="edit-head">Nguyên nhân chưa đạt / Bài học</div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}</div><div class="edit-cell">${inputCell(row.previousWork, 'previousWork', row.id, true)}</div><div class="edit-cell">${inputCell(row.status, 'status', row.id)}</div><div class="edit-cell">${inputCell(row.impact, 'impact', row.id, true)}</div><div class="edit-cell">${inputCell(row.lesson, 'lesson', row.id, true)}</div>`).join('')}</div>`;
-    if (!rows.length) $('#reviewTable').innerHTML = '<div class="empty-state">Chưa có công việc kỳ trước. Bạn có thể bắt đầu nhập ở kế hoạch mới.</div>';
+    $('#reviewTable').innerHTML = `<div class="edit-grid review-work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head">Trạng thái</div><div class="edit-head">Đánh giá kết quả</div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}</div><div class="edit-cell"><span class="readonly-value"><strong>${escapeHtml(row.title)}</strong>${row.detail ? `\n${escapeHtml(row.detail)}` : ''}${row.kpi ? `\nKPI: ${escapeHtml(row.kpi)}` : ''}</span></div><div class="edit-cell"><span class="readonly-value">${escapeHtml(row.owner)}</span></div><div class="edit-cell"><span class="readonly-value">${escapeHtml(row.deadline)}</span></div><div class="edit-cell"><select data-previous-field="status" data-id="${escapeHtml(row.id)}"><option value="">Chọn trạng thái</option>${['Đạt', 'Chưa đạt', 'Trễ hạn'].map((value) => `<option value="${value}"${row.status === value ? ' selected' : ''}>${value}</option>`).join('')}</select><div class="save-state" data-save-state="${escapeHtml(row.id)}"></div></div><div class="edit-cell"><textarea data-previous-field="result" data-id="${escapeHtml(row.id)}" rows="2" placeholder="Nhập kết quả thực tế">${escapeHtml(row.result || '')}</textarea></div>`).join('')}</div>`;
+    if (!rows.length) $('#reviewTable').innerHTML = '<div class="empty-state">Chưa có công việc kỳ trước</div>';
   }
   function renderEvaluations() {
     const rows = state.evaluations || [];
-    $('#evaluationTable').innerHTML = `<div class="edit-grid"><div class="edit-head">STT</div><div class="edit-head">Chỉ số / Phân khúc</div><div class="edit-head">Thực trạng kỳ này</div><div class="edit-head">Nguyên nhân chính</div><div class="edit-head">Hành động tối ưu kỳ sau</div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}</div><div class="edit-cell">${inputCell(row.segment, 'segment', row.id, true)}</div><div class="edit-cell">${inputCell(row.situation, 'situation', row.id, true)}</div><div class="edit-cell">${inputCell(row.cause, 'cause', row.id, true)}</div><div class="edit-cell">${inputCell(row.action, 'action', row.id, true)}</div>`).join('')}</div>`;
+    $('#evaluationTable').innerHTML = `<div class="edit-grid"><div class="edit-head">STT</div><div class="edit-head">Chỉ số / Phân khúc</div><div class="edit-head">Thực trạng kỳ này</div><div class="edit-head">Nguyên nhân chính</div><div class="edit-head">Hành động tối ưu kỳ sau</div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}</div>${['segment', 'situation', 'cause', 'action'].map((field) => `<div class="edit-cell"><span class="readonly-value">${escapeHtml(row[field])}</span></div>`).join('')}`).join('')}</div>`;
     if (!rows.length) $('#evaluationTable').innerHTML = '<div class="empty-state">Chưa có đánh giá. Thêm nội dung sau khi xem số liệu.</div>';
   }
   function renderWork() {
     const rows = state.workItems || [];
-    $('#workTable').innerHTML = `<div class="edit-grid work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Chi tiết hành động</div><div class="edit-head">Mục tiêu KPI</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head"></div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}</div><div class="edit-cell">${inputCell(row.title, 'title', row.id, true)}</div><div class="edit-cell">${inputCell(row.detail, 'detail', row.id, true)}</div><div class="edit-cell">${inputCell(row.kpi, 'kpi', row.id, true)}</div><div class="edit-cell">${inputCell(row.owner, 'owner', row.id)}</div><div class="edit-cell">${inputCell(row.deadline, 'deadline', row.id)}</div><div class="edit-cell"><button class="delete-row" data-delete-work="${row.id}" type="button" aria-label="Xóa công việc">×</button></div>`).join('')}</div>`;
+    $('#workTable').innerHTML = `<div class="edit-grid work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Chi tiết hành động</div><div class="edit-head">Mục tiêu KPI</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head"></div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}</div>${['title', 'detail', 'kpi', 'owner', 'deadline'].map((field) => `<div class="edit-cell"><span class="readonly-value">${escapeHtml(row[field])}</span></div>`).join('')}<div class="edit-cell"></div>`).join('')}</div>`;
     if (!rows.length) $('#workTable').innerHTML = '<div class="empty-state">Chưa có công việc. Thêm một dòng để bắt đầu kế hoạch.</div>';
+  }
+  function renderPopupEvaluations() {
+    const rows = state.settingsDraft?.evaluations || [];
+    $('#popupEvaluationTable').innerHTML = rows.length ? `<div class="edit-grid"><div class="edit-head">STT</div><div class="edit-head">Chỉ số / Phân khúc</div><div class="edit-head">Thực trạng</div><div class="edit-head">Nguyên nhân</div><div class="edit-head">Hành động</div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}<button class="delete-row" data-delete-evaluation="${row.id}" type="button" aria-label="Xóa dòng">×</button></div><div class="edit-cell">${inputCell(row.segment, 'segment', row.id, true)}</div><div class="edit-cell">${inputCell(row.situation, 'situation', row.id, true)}</div><div class="edit-cell">${inputCell(row.cause, 'cause', row.id, true)}</div><div class="edit-cell">${inputCell(row.action, 'action', row.id, true)}</div>`).join('')}</div>` : '<div class="empty-state">Chưa có dòng đánh giá.</div>';
+    bindPopupEditors();
+  }
+  function renderPopupWork() {
+    const rows = state.settingsDraft?.workItems || [];
+    $('#popupWorkTable').innerHTML = rows.length ? `<div class="edit-grid work"><div class="edit-head">STT</div><div class="edit-head">Công việc</div><div class="edit-head">Chi tiết hành động</div><div class="edit-head">Mục tiêu KPI</div><div class="edit-head">Phụ trách</div><div class="edit-head">Deadline</div><div class="edit-head"></div>${rows.map((row, index) => `<div class="edit-cell row-number">${index + 1}</div><div class="edit-cell">${inputCell(row.title, 'title', row.id, true)}</div><div class="edit-cell">${inputCell(row.detail, 'detail', row.id, true)}</div><div class="edit-cell">${inputCell(row.kpi, 'kpi', row.id, true)}</div><div class="edit-cell">${inputCell(row.owner, 'owner', row.id)}</div><div class="edit-cell"><input type="date" data-field="deadline" data-id="${row.id}" value="${escapeHtml(row.deadline)}"></div><div class="edit-cell"><button class="delete-row" data-delete-work="${row.id}" type="button" aria-label="Xóa công việc">×</button></div>`).join('')}</div>` : '<div class="empty-state">Chưa có công việc cho kỳ này.</div>';
+    bindPopupEditors();
   }
   function renderPeriodPicker() {
     const label = $('#periodPickerLabel');
@@ -200,8 +245,9 @@
     popover.hidden = !open;
     button.setAttribute('aria-expanded', String(open));
   }
-  function selectPeriod(kind, anchorDate) {
+  function selectPeriod(kind, anchorDate, updatePath = true) {
     state.kind = kind; state.anchorDate = anchorDate; state.period = makePeriod(kind, anchorDate); state.snapshot = emptySnapshot(state.period); state.id = ''; state.review = []; state.evaluations = []; state.workItems = [];
+    if (updatePath) syncPeriodPath(state.period);
     togglePeriodPicker(false); renderAll(); bindEditors(); loadSource();
   }
   function renderAll() {
@@ -215,21 +261,46 @@
       const item = collection.find((row) => row.id === input.dataset.id); if (item) item[input.dataset.field] = input.value;
     }));
   }
-  function bindEditors() { syncEditableRows($('#reviewTable'), state.review); syncEditableRows($('#evaluationTable'), state.evaluations); syncEditableRows($('#workTable'), state.workItems); }
+  function bindPopupEditors() {
+    if (!state.settingsDraft) return;
+    syncEditableRows($('#popupEvaluationTable'), state.settingsDraft.evaluations);
+    syncEditableRows($('#popupWorkTable'), state.settingsDraft.workItems);
+  }
+  function bindEditors() {
+    $('#reviewTable').querySelectorAll('[data-previous-field]').forEach((input) => input.addEventListener('change', async () => {
+      const item = state.review.find((row) => row.id === input.dataset.id);
+      if (!item || state.kind !== 'week') return;
+      item[input.dataset.previousField] = input.value;
+      const status = $(`[data-save-state="${CSS.escape(item.id)}"]`);
+      if (status) status.textContent = 'Đang lưu...';
+      try {
+        await api('/api/previous-work-item', { method: 'PATCH', body: JSON.stringify({ currentWeekStartDate: state.period.startDate, taskId: item.id, [input.dataset.previousField]: input.value }) });
+        if (status) status.textContent = 'Đã lưu';
+      } catch (error) {
+        if (status) status.textContent = error.message || 'Lưu thất bại';
+      }
+    }));
+  }
   function updatePeriodPreview() { const kind = document.querySelector('input[name="reportKind"]:checked')?.value || state.kind; const period = window.__periods?.[kind]; const anchor = $('#anchorDate').value; if (!anchor) return; const [year, month, day] = anchor.split('-').map(Number); const date = new Date(Date.UTC(year, month - 1, day)); let start; let end; if (kind === 'week') { start = new Date(date); start.setUTCDate(start.getUTCDate() - 7); end = new Date(date); end.setUTCDate(end.getUTCDate() - 1); } else { end = new Date(Date.UTC(year, month, 0)); start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1)); } const f = (d) => `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`; $('#periodPreview').textContent = kind === 'week' ? `Kỳ báo cáo: ${f(start)} - ${f(end)}` : `Kỳ báo cáo: tháng ${String(start.getUTCMonth() + 1).padStart(2, '0')}/${start.getUTCFullYear()}`; $('#anchorHelp').textContent = kind === 'week' ? 'Chọn thứ 7 làm mốc chốt tuần.' : 'Chọn ngày 1 của tháng cần xem.'; }
 
-  async function loadSource() {
+  async function loadSource(forceRefresh = false) {
     if (!state.period) return;
     setBusy(true); setSync('Đang lấy số liệu', 'loading'); setNotice('');
     try {
       let snapshot;
       let lastError;
       for (let attempt = 0; attempt < 2; attempt += 1) {
-        try { snapshot = await api('/api/source-report', { method: 'POST', body: JSON.stringify({ kind: state.kind, anchorDate: state.anchorDate }) }); break; }
+        try { snapshot = await api('/api/source-report', { method: 'POST', body: JSON.stringify({ kind: state.kind, anchorDate: state.anchorDate, forceRefresh }) }); break; }
         catch (error) { lastError = error; if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 650)); }
       }
       if (!snapshot) throw lastError || new Error('Không thể lấy số liệu.');
-      state.snapshot = snapshot; state.id = snapshot.id || ''; if (snapshot.id) { state.review = snapshot.review || []; state.evaluations = snapshot.evaluations || []; state.workItems = snapshot.workItems || []; } renderAll(); bindEditors(); setSync('Đã đồng bộ', 'ready'); setNotice('');
+      snapshot.period = state.period;
+      state.snapshot = snapshot;
+      state.id = snapshot.id || '';
+      state.review = snapshot.previousWorkItems || [];
+      state.evaluations = snapshot.evaluations || [];
+      state.workItems = snapshot.workItems || [];
+      renderAll(); bindEditors(); setSync('Đã đồng bộ', 'ready'); setNotice('');
     }
     catch (error) { setSync('Chưa đồng bộ'); setNotice(error.message || 'Không thể lấy số liệu.'); }
     finally { setBusy(false); }
@@ -237,27 +308,109 @@
   async function saveCurrent() {
     if (!state.snapshot?.dataAvailable) { setNotice('Hãy lấy số liệu trước khi lưu báo cáo.'); return; }
     setBusy(true); setNotice('');
-    try { const saved = await api('/api/reports', { method: 'POST', body: JSON.stringify({ snapshot: state.snapshot, review: state.review, evaluations: state.evaluations, workItems: state.workItems }) }); state.id = saved.id; setSync('Đã lưu Supabase', 'ready'); setNotice('Báo cáo và các công việc đã được lưu. Bạn có thể mở lại từ kho lưu trữ.', true); await loadHistory(state.historyKind); }
+    try {
+      const payload = { snapshot: state.snapshot, review: [], evaluations: state.evaluations, workItems: state.workItems };
+      console.log('Saving for week:', state.period.startDate, payload);
+      const saved = await api('/api/reports', { method: 'POST', body: JSON.stringify(payload) });
+      state.id = saved.id; state.review = saved.previousWorkItems || []; state.evaluations = saved.evaluations || []; state.workItems = saved.workItems || [];
+      setSync('Đã lưu Supabase', 'ready'); setNotice('Báo cáo và các công việc đã được lưu. Bạn có thể mở lại từ kho lưu trữ.', true); await loadHistory(state.historyKind);
+    }
     catch (error) { setNotice(error.message || 'Không thể lưu báo cáo.'); }
     finally { setBusy(false); }
   }
-  function loadRecord(record) { state.id = record.id; state.kind = record.period.kind; state.anchorDate = record.period.anchorDate; state.period = record.period; state.snapshot = record; state.review = record.review || []; state.evaluations = record.evaluations || []; state.workItems = record.workItems || []; renderAll(); bindEditors(); closeHistory(); setSync('Đã mở báo cáo lưu', 'ready'); setNotice(`Đang xem ${record.period.title}.`, true); }
-  async function loadHistory(kind = state.historyKind) { state.historyKind = kind; const list = $('#historyList'); list.innerHTML = '<div class="empty-state">Đang tải...</div>'; try { const rows = await api(`/api/reports?kind=${encodeURIComponent(kind)}`); list.innerHTML = rows.length ? rows.map((row) => `<button class="history-item" data-report-id="${escapeHtml(row.id)}" type="button"><strong>${escapeHtml(row.period.title)}</strong><small>${formatDate(row.period.startDate)} - ${formatDate(row.period.endDate)} · Cập nhật ${formatDate(row.updatedAt?.slice(0, 10))}</small></button>`).join('') : '<div class="empty-state">Chưa có báo cáo đã lưu.</div>'; list.querySelectorAll('[data-report-id]').forEach((button) => button.addEventListener('click', async () => { try { loadRecord(await api(`/api/reports/${encodeURIComponent(button.dataset.reportId)}`)); } catch (error) { setNotice(error.message); } })); } catch (error) { list.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`; } }
+  function loadRecord(record) { state.id = record.id; state.kind = record.period.kind; state.anchorDate = record.period.anchorDate; state.period = makePeriod(record.period.kind, record.period.anchorDate); record.period = state.period; state.snapshot = record; state.review = record.previousWorkItems || []; state.evaluations = record.evaluations || []; state.workItems = record.workItems || []; syncPeriodPath(state.period); renderAll(); bindEditors(); closeHistory(); setSync('Đã mở báo cáo lưu', 'ready'); setNotice(`Đang xem ${state.period.title}.`, true); }
+  async function loadHistory(kind = state.historyKind) { state.historyKind = kind; const list = $('#historyList'); list.innerHTML = '<div class="empty-state">Đang tải...</div>'; try { const rows = await api(`/api/reports?kind=${encodeURIComponent(kind)}`); list.innerHTML = rows.length ? rows.map((row) => { const displayPeriod = makePeriod(row.period.kind, row.period.anchorDate); return `<button class="history-item" data-report-id="${escapeHtml(row.id)}" type="button"><strong>${escapeHtml(displayPeriod.title)}</strong><small>${formatDate(displayPeriod.startDate)} - ${formatDate(displayPeriod.endDate)} · Cập nhật ${formatDate(row.updatedAt?.slice(0, 10))}</small></button>`; }).join('') : '<div class="empty-state">Chưa có báo cáo đã lưu.</div>'; list.querySelectorAll('[data-report-id]').forEach((button) => button.addEventListener('click', async () => { try { loadRecord(await api(`/api/reports/${encodeURIComponent(button.dataset.reportId)}`)); } catch (error) { setNotice(error.message); } })); } catch (error) { list.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`; } }
   function openHistory() { $('#overlay').hidden = false; $('#historyDrawer').classList.add('is-open'); $('#historyDrawer').setAttribute('aria-hidden', 'false'); loadHistory(state.historyKind); }
   function closeHistory() { $('#overlay').hidden = true; $('#historyDrawer').classList.remove('is-open'); $('#historyDrawer').setAttribute('aria-hidden', 'true'); }
-  function openSettings() { const dialog = $('#settingsDialog'); document.querySelector(`input[name="reportKind"][value="${state.kind}"]`).checked = true; $('#anchorDate').value = state.anchorDate; updatePeriodPreview(); dialog.showModal(); }
-  function applySettings(event) { event.preventDefault(); state.kind = document.querySelector('input[name="reportKind"]:checked').value; state.anchorDate = $('#anchorDate').value; state.period = makePeriod(state.kind, state.anchorDate); state.snapshot = emptySnapshot(state.period); state.id = ''; state.review = []; state.evaluations = []; state.workItems = []; $('#settingsDialog').close(); renderAll(); bindEditors(); loadSource(); }
-  function addWork() { state.workItems.push({ id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`, title: '', detail: '', kpi: '', owner: '', deadline: '' }); renderWork(); bindEditors(); }
+  function popupPeriod() {
+    const kind = document.querySelector('input[name="reportKind"]:checked')?.value || state.kind;
+    const anchorDate = $('#anchorDate').value;
+    return anchorDate ? makePeriod(kind, anchorDate) : null;
+  }
+  function syncDraftRates() {
+    if (!state.settingsDraft) return;
+    const read = (selector) => $(selector).value === '' ? null : Number($(selector).value);
+    state.settingsDraft.shippingSpeedRate = read('#fastShippingRateInput');
+    state.settingsDraft.responseRate = read('#quickResponseRateInput');
+  }
+  async function loadSettingsDraft() {
+    const period = popupPeriod();
+    if (!period) return;
+    const token = newId();
+    state.settingsDraft = { token, period, shippingSpeedRate: null, responseRate: null, evaluations: [], workItems: [], loading: true };
+    $('#fastShippingRateInput').value = '';
+    $('#quickResponseRateInput').value = '';
+    $('#popupEvaluationTable').innerHTML = '<div class="empty-state">Đang tải dữ liệu kỳ đã chọn...</div>';
+    $('#popupWorkTable').innerHTML = '<div class="empty-state">Đang tải dữ liệu kỳ đã chọn...</div>';
+    try {
+      const context = await api(`/api/manual-context?kind=${encodeURIComponent(period.kind)}&periodStart=${encodeURIComponent(period.startDate)}`);
+      if (state.settingsDraft?.token !== token) return;
+      state.settingsDraft = { token, period, shippingSpeedRate: context.shippingSpeedRate, responseRate: context.responseRate, evaluations: context.evaluations || [], workItems: context.workItems || [], loading: false };
+      $('#fastShippingRateInput').value = context.shippingSpeedRate ?? '';
+      $('#quickResponseRateInput').value = context.responseRate ?? '';
+      renderPopupEvaluations(); renderPopupWork();
+    } catch (error) {
+      if (state.settingsDraft?.token !== token) return;
+      state.settingsDraft.loading = false;
+      $('#popupEvaluationTable').innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+      $('#popupWorkTable').innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    }
+  }
+  async function openSettings() {
+    const dialog = $('#settingsDialog');
+    document.querySelector(`input[name="reportKind"][value="${state.kind}"]`).checked = true;
+    $('#anchorDate').value = state.anchorDate;
+    updatePeriodPreview(); dialog.showModal();
+    await loadSettingsDraft();
+  }
+  function applyManualRate(metric, value) {
+    if (value === null || !Number.isFinite(value)) return { ...metric, value: null, change: null };
+    const previous = metric?.previous;
+    return { ...metric, value, change: previous !== null && previous !== undefined && previous !== 0 ? (value - previous) / Math.abs(previous) : null };
+  }
+  async function applySettings(event) {
+    event.preventDefault();
+    syncDraftRates();
+    const draft = state.settingsDraft;
+    if (!draft || draft.loading) return;
+    setBusy(true); setNotice('');
+    try {
+      const source = await api('/api/source-report', { method: 'POST', body: JSON.stringify({ kind: draft.period.kind, anchorDate: draft.period.anchorDate }) });
+      source.period = draft.period;
+      source.operations.fastShippingRate = applyManualRate(source.operations.fastShippingRate, draft.shippingSpeedRate);
+      source.operations.quickResponseRate = applyManualRate(source.operations.quickResponseRate, draft.responseRate);
+      const payload = { snapshot: source, review: [], evaluations: draft.evaluations, workItems: draft.workItems };
+      console.log('Saving for week:', draft.period.startDate, payload);
+      const saved = await api('/api/reports', { method: 'POST', body: JSON.stringify(payload) });
+      state.kind = draft.period.kind; state.anchorDate = draft.period.anchorDate; state.period = draft.period;
+      saved.period = draft.period; state.snapshot = saved; state.id = saved.id; state.review = saved.previousWorkItems || []; state.evaluations = saved.evaluations || []; state.workItems = saved.workItems || [];
+      syncPeriodPath(state.period); $('#settingsDialog').close(); renderAll(); bindEditors(); setSync('Đã lưu Supabase', 'ready'); setNotice('Đã lưu toàn bộ dữ liệu nhập tay cho đúng kỳ báo cáo.', true); await loadHistory(state.historyKind);
+    } catch (error) { setNotice(error.message || 'Không thể lưu dữ liệu nhập tay.'); }
+    finally { setBusy(false); }
+  }
+  function addEvaluation() {
+    if (!state.settingsDraft) return;
+    state.settingsDraft.evaluations.push({ id: newId(), segment: '', situation: '', cause: '', action: '' }); renderPopupEvaluations();
+  }
+  function addWork() {
+    if (!state.settingsDraft) return;
+    state.settingsDraft.workItems.push({ id: newId(), title: '', detail: '', kpi: '', owner: '', deadline: '', status: '', result: '' }); renderPopupWork();
+  }
   function wire() {
-    $('#historyButton').addEventListener('click', openHistory); $('#closeHistoryButton').addEventListener('click', closeHistory); $('#overlay').addEventListener('click', closeHistory); $('#refreshButton').addEventListener('click', () => loadSource(true)); $('#saveButton').addEventListener('click', saveCurrent); $('#addWorkButton').addEventListener('click', addWork); $('#settingsForm').addEventListener('submit', applySettings); $('#anchorDate').addEventListener('change', updatePeriodPreview); $('#periodPickerButton').addEventListener('click', () => togglePeriodPicker());
-    document.querySelectorAll('input[name="reportKind"]').forEach((input) => input.addEventListener('change', updatePeriodPreview)); document.querySelectorAll('[data-history-kind]').forEach((tab) => tab.addEventListener('click', () => { document.querySelectorAll('[data-history-kind]').forEach((item) => item.classList.toggle('is-active', item === tab)); loadHistory(tab.dataset.historyKind); }));
+    $('#historyButton').addEventListener('click', openHistory); $('#closeHistoryButton').addEventListener('click', closeHistory); $('#overlay').addEventListener('click', closeHistory); $('#refreshButton').addEventListener('click', () => loadSource(true)); $('#saveButton').addEventListener('click', () => $('#settingsForm').requestSubmit()); $('#addEvaluationButton').addEventListener('click', addEvaluation); $('#addWorkButton').addEventListener('click', addWork); $('#settingsForm').addEventListener('submit', applySettings); $('#anchorDate').addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }); $('#periodPickerButton').addEventListener('click', () => togglePeriodPicker());
+    document.querySelectorAll('input[name="reportKind"]').forEach((input) => input.addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }));
+    ['#fastShippingRateInput', '#quickResponseRateInput'].forEach((selector) => $(selector).addEventListener('input', syncDraftRates));
+    document.querySelectorAll('[data-history-kind]').forEach((tab) => tab.addEventListener('click', () => { document.querySelectorAll('[data-history-kind]').forEach((item) => item.classList.toggle('is-active', item === tab)); loadHistory(tab.dataset.historyKind); }));
     document.addEventListener('click', (event) => { if (!event.target.closest('.period-toolbar')) togglePeriodPicker(false); });
-    $('#workTable').addEventListener('click', (event) => { const button = event.target.closest('[data-delete-work]'); if (!button) return; state.workItems = state.workItems.filter((row) => row.id !== button.dataset.deleteWork); renderWork(); bindEditors(); }); document.addEventListener('keydown', (event) => { if (event.key.toLowerCase() === 'i' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) { event.preventDefault(); openSettings(); } if (event.key === 'Escape') { closeHistory(); togglePeriodPicker(false); } });
+    window.addEventListener('popstate', () => { const route = periodFromPath(); if (route) selectPeriod(route.kind, route.anchorDate, false); });
+    $('#popupEvaluationTable').addEventListener('click', (event) => { const button = event.target.closest('[data-delete-evaluation]'); if (!button || !state.settingsDraft) return; state.settingsDraft.evaluations = state.settingsDraft.evaluations.filter((row) => row.id !== button.dataset.deleteEvaluation); renderPopupEvaluations(); });
+    $('#popupWorkTable').addEventListener('click', (event) => { const button = event.target.closest('[data-delete-work]'); if (!button || !state.settingsDraft) return; state.settingsDraft.workItems = state.settingsDraft.workItems.filter((row) => row.id !== button.dataset.deleteWork); renderPopupWork(); });
+    document.addEventListener('keydown', (event) => { if (event.key.toLowerCase() === 'i' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) { event.preventDefault(); openSettings(); } if (event.key === 'Escape') { closeHistory(); togglePeriodPicker(false); } });
   }
 
   async function init() {
     wire();
-    try { const defaults = await api('/api/default-periods'); window.__periods = defaults; state.period = defaults.week; state.anchorDate = defaults.week.anchorDate; state.snapshot = emptySnapshot(state.period); renderAll(); bindEditors(); await loadHistory('week'); await loadSource(); }
+    try { const defaults = await api('/api/default-periods'); window.__periods = defaults; const route = periodFromPath(); state.kind = route?.kind || 'week'; state.anchorDate = route?.anchorDate || defaults.week.anchorDate; state.period = makePeriod(state.kind, state.anchorDate); syncPeriodPath(state.period, true); state.snapshot = emptySnapshot(state.period); renderAll(); bindEditors(); await loadHistory('week'); await loadSource(); }
     catch (error) { setNotice(error.message || 'Không thể khởi tạo báo cáo.'); renderAll(); }
   }
   init();

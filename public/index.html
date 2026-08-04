@@ -4,11 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f8fafc">
+  <link rel="icon" type="image/png" href="/FAVICON.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <title>Report ALF | Báo cáo vận hành</title>
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=20260804-4">
 </head>
 <body>
   <div class="app-shell">
@@ -19,7 +20,6 @@
       </a>
       <div class="topbar-actions">
         <section class="period-toolbar" aria-label="Khoảng thời gian báo cáo">
-          <span class="period-toolbar-label">Bấm để đổi khoảng thời gian xem</span>
           <button class="period-picker-button" id="periodPickerButton" type="button" aria-haspopup="dialog" aria-expanded="false">
             <span class="period-calendar" aria-hidden="true">▣</span><span id="periodPickerLabel">Đang tải kỳ báo cáo...</span><span class="period-chevron" aria-hidden="true">⌄</span>
           </button>
@@ -58,18 +58,19 @@
           <div class="section-heading"><div><h2>Cơ cấu GMV tổng</h2><p class="section-description">Chi phí và lợi nhuận gộp ước tính trong kỳ</p></div></div>
           <div class="finance-layout">
             <div class="donut" id="financeDonut" aria-label="Cơ cấu chi phí"></div>
+            <div class="finance-legend" id="financeLegend" aria-label="Chú giải cơ cấu GMV"></div>
           </div>
         </article>
       </section>
 
       <section class="panel table-panel" aria-labelledby="sourcesTitle">
         <div class="section-heading"><div><h2 id="sourcesTitle">Nguồn traffic và nội dung</h2><p class="section-description">So sánh đóng góp GMV và chất lượng traffic theo nguồn.</p></div></div>
-        <div class="table-scroll"><table><thead><tr><th>Nguồn</th><th>GMV</th><th>Đóng góp</th><th>Hiển thị</th><th>Lượt nhấp</th><th>CTR</th><th>CTOR</th></tr></thead><tbody id="sourcesTable"></tbody></table></div>
+        <div class="table-scroll"><table class="report-table sources-table"><colgroup><col class="source-name"><col span="6" class="metric-column"></colgroup><thead><tr><th>Nguồn</th><th>GMV</th><th>Đóng góp</th><th>Hiển thị</th><th>Lượt nhấp</th><th>CTR</th><th>CTOR</th></tr></thead><tbody id="sourcesTable"></tbody></table></div>
       </section>
 
       <section class="panel table-panel" aria-labelledby="productsTitle">
         <div class="section-heading"><div><h2 id="productsTitle">Top sản phẩm</h2><p class="section-description">Các sản phẩm có GMV cao nhất trong kỳ.</p></div></div>
-        <div class="table-scroll"><table><thead><tr><th>Sản phẩm</th><th>GMV</th><th>Đơn</th><th>Hiển thị</th><th>Nhấp</th><th>CTR</th><th>CTOR</th></tr></thead><tbody id="productsTable"></tbody></table></div>
+        <div class="table-scroll"><table class="report-table products-table"><colgroup><col class="product-name"><col span="6" class="metric-column"></colgroup><thead><tr><th>Sản phẩm</th><th>GMV</th><th>Đơn</th><th>Hiển thị</th><th>Nhấp</th><th>CTR</th><th>CTOR</th></tr></thead><tbody id="productsTable"></tbody></table></div>
       </section>
 
       <section class="section-block" aria-labelledby="reviewTitle">
@@ -100,16 +101,30 @@
     <form method="dialog" class="dialog-card" id="settingsForm">
       <div class="dialog-head"><div><p class="eyebrow">ĐIỀU KHIỂN BÁO CÁO</p><h2>Cài đặt và đồng bộ</h2></div><button class="icon-button" value="cancel" aria-label="Đóng">×</button></div>
       <div class="dialog-sync"><span class="sync-state" id="syncState"><span class="state-dot"></span> Chưa đồng bộ</span><span class="dialog-shortcut">Phím <kbd>i</kbd> để mở</span></div>
-      <div class="dialog-controls"><button class="button button-secondary" id="historyButton" type="button">Báo cáo đã lưu</button><button class="button button-secondary" id="refreshButton" type="button">Lấy số liệu</button><button class="button button-primary" id="saveButton" type="button">Lưu báo cáo</button><button class="button button-secondary" id="addWorkButton" type="button">Thêm công việc</button></div>
+      <div class="dialog-controls"><button class="button button-secondary" id="historyButton" type="button">Báo cáo đã lưu</button><button class="button button-secondary" id="refreshButton" type="button">Lấy số liệu</button><button class="button button-primary" id="saveButton" type="button">Lưu báo cáo</button></div>
       <div class="dialog-divider"></div>
       <p class="dialog-section-label">Kỳ tùy chỉnh</p>
       <div class="choice-row"><label class="choice"><input type="radio" name="reportKind" value="week" checked><span><strong>Báo cáo tuần</strong><small>Thứ 7 tuần trước đến thứ 6 tuần này</small></span></label><label class="choice"><input type="radio" name="reportKind" value="month"><span><strong>Báo cáo tháng</strong><small>Luôn chốt vào ngày 1 hàng tháng</small></span></label></div>
       <label class="field"><span>Ngày chốt báo cáo</span><input id="anchorDate" type="date" required><small id="anchorHelp">Chọn thứ 7 làm mốc chốt tuần.</small></label>
       <div class="period-preview" id="periodPreview"></div>
+      <div class="dialog-divider"></div>
+      <p class="dialog-section-label">Chỉ số vận hành nhập thủ công</p>
+      <div class="manual-metrics">
+        <label class="field"><span>Tỷ lệ gửi hàng nhanh</span><input id="fastShippingRateInput" type="number" min="0" max="100" step="0.01" placeholder="Ví dụ: 98.5"><small>Nhập theo phần trăm (%).</small></label>
+        <label class="field"><span>Tỷ lệ phản hồi</span><input id="quickResponseRateInput" type="number" min="0" max="100" step="0.01" placeholder="Ví dụ: 95"><small>Nhập theo phần trăm (%).</small></label>
+      </div>
+      <section class="dialog-manual-section">
+        <div class="dialog-section-head"><div><p class="dialog-section-label">Đánh giá chỉ số và hành động tối ưu</p><small>Chỉ áp dụng cho kỳ đang chọn.</small></div><button class="button button-secondary" id="addEvaluationButton" type="button">+ Thêm dòng</button></div>
+        <div class="popup-edit-table" id="popupEvaluationTable"></div>
+      </section>
+      <section class="dialog-manual-section">
+        <div class="dialog-section-head"><div><p class="dialog-section-label">Công việc thực thi</p><small>Công việc được lưu riêng theo tuần hoặc tháng.</small></div><button class="button button-secondary" id="addWorkButton" type="button">+ Thêm công việc</button></div>
+        <div class="popup-edit-table" id="popupWorkTable"></div>
+      </section>
       <div class="dialog-actions"><button class="button button-quiet" value="cancel">Hủy</button><button class="button button-primary" id="applySettingsButton" value="default">Áp dụng</button></div>
     </form>
   </dialog>
 
-  <script src="/app.js?v=20260803-7" defer></script>
+  <script src="/app.js?v=20260804-5" defer></script>
 </body>
 </html>
