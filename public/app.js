@@ -477,6 +477,20 @@
     const id = newId();
     state.settingsDraft.workItems.push({ id, title: '', detail: '', kpi: '', owner: '', deadline: '', actions: [{ id: newId(), detail: '', kpi: '', owner: '', deadline: '' }], status: '', result: '' }); renderPopupWork();
   }
+  function closeSettings() {
+    const dialog = $('#settingsDialog');
+    if (dialog.open) dialog.close('cancel');
+    state.settingsDraft = null;
+    state.finalizeOnSave = false;
+  }
+  function closeDialogFromBackdrop(event, dialog, cardSelector, close) {
+    if (!dialog.open) return;
+    const card = dialog.querySelector(cardSelector);
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const outside = event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom;
+    if (outside) close();
+  }
   function wire() {
     $('#historyButton').addEventListener('click', openHistory); $('#closeHistoryButton').addEventListener('click', closeHistory); $('#overlay').addEventListener('click', closeHistory); $('#refreshButton').addEventListener('click', () => loadSource(true)); $('#exportMarkdownButton').addEventListener('click', exportMarkdown); $('#saveButton').addEventListener('click', () => { state.finalizeOnSave = true; $('#settingsForm').requestSubmit(); }); $('#applySettingsButton').addEventListener('click', () => { state.finalizeOnSave = false; }); $('#addEvaluationButton').addEventListener('click', addEvaluation); $('#addWorkButton').addEventListener('click', addWork); $('#settingsForm').addEventListener('submit', applySettings); $('#anchorDate').addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }); $('#periodPickerButton').addEventListener('click', () => togglePeriodPicker());
     document.querySelectorAll('input[name="reportKind"]').forEach((input) => input.addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }));
@@ -484,6 +498,11 @@
     $('#settingsAuthForm').addEventListener('submit', submitSettingsAuth);
     $('#closeSettingsAuth').addEventListener('click', () => $('#settingsAuthDialog').close());
     $('#cancelSettingsAuth').addEventListener('click', () => $('#settingsAuthDialog').close());
+    $('#closeSettingsButton').addEventListener('click', closeSettings);
+    $('#cancelSettingsButton').addEventListener('click', closeSettings);
+    $('#settingsDialog').addEventListener('click', (event) => closeDialogFromBackdrop(event, $('#settingsDialog'), '.dialog-card', closeSettings));
+    $('#settingsDialog').addEventListener('close', () => { state.settingsDraft = null; state.finalizeOnSave = false; });
+    $('#settingsAuthDialog').addEventListener('click', (event) => closeDialogFromBackdrop(event, $('#settingsAuthDialog'), '.settings-auth-card', () => $('#settingsAuthDialog').close()));
     document.querySelectorAll('[data-history-kind]').forEach((tab) => tab.addEventListener('click', () => { document.querySelectorAll('[data-history-kind]').forEach((item) => item.classList.toggle('is-active', item === tab)); loadHistory(tab.dataset.historyKind); }));
     document.addEventListener('click', (event) => { if (!event.target.closest('.period-toolbar')) togglePeriodPicker(false); });
     window.addEventListener('popstate', () => { const route = periodFromPath(); if (route) selectPeriod(route.kind, route.anchorDate, false); });

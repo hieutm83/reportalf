@@ -109,7 +109,7 @@
 
   <dialog class="settings-dialog" id="settingsDialog">
     <form method="dialog" class="dialog-card" id="settingsForm">
-      <div class="dialog-head"><div><p class="eyebrow">ĐIỀU KHIỂN BÁO CÁO</p><h2>Cài đặt và đồng bộ</h2></div><button class="icon-button" value="cancel" aria-label="Đóng">×</button></div>
+      <div class="dialog-head"><div><p class="eyebrow">ĐIỀU KHIỂN BÁO CÁO</p><h2>Cài đặt và đồng bộ</h2></div><button class="icon-button" id="closeSettingsButton" type="button" aria-label="Đóng">×</button></div>
       <div class="dialog-sync"><span class="sync-state" id="syncState"><span class="state-dot"></span> Chưa đồng bộ</span><span class="dialog-shortcut">Phím <kbd>i</kbd> để mở</span></div>
       <div class="dialog-controls"><button class="button button-secondary" id="historyButton" type="button">Báo cáo đã lưu</button><button class="button button-secondary" id="refreshButton" type="button">Lấy số liệu</button><button class="button button-secondary" id="exportMarkdownButton" type="button">Xuất dữ liệu MD</button><button class="button button-primary" id="saveButton" type="button">Lưu báo cáo</button></div>
       <div class="dialog-divider"></div>
@@ -135,10 +135,10 @@
         <div class="dialog-section-head"><div><p class="dialog-section-label">Công việc thực thi</p><small>Công việc được lưu riêng theo tuần hoặc tháng.</small></div><button class="button button-secondary" id="addWorkButton" type="button">+ Thêm công việc</button></div>
         <div class="popup-edit-table" id="popupWorkTable"></div>
       </section>
-      <div class="dialog-actions"><button class="button button-quiet" value="cancel">Hủy</button><button class="button button-primary" id="applySettingsButton" value="default">Áp dụng</button></div>
+      <div class="dialog-actions"><button class="button button-quiet" id="cancelSettingsButton" type="button">Hủy</button><button class="button button-primary" id="applySettingsButton" value="default">Áp dụng</button></div>
     </form>
   </dialog>
 
-  <script src="/app.js?v=20260804-11" defer></script>
+  <script src="/app.js?v=20260804-12" defer></script>
 </body>
 </html>
