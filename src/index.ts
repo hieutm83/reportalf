@@ -102,7 +102,7 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
   if (request.method === 'GET' && url.pathname === '/api/reports') {
     const kind = url.searchParams.get('kind');
     if (kind && !isKind(kind)) return json({ ok: false, error: 'Loại báo cáo không hợp lệ.' }, 400);
-    return json({ ok: true, data: await listReports(env, kind || undefined) });
+    return json({ ok: true, data: (await listReports(env, kind || undefined)).filter((record) => record.finalized !== false) });
   }
   if (request.method === 'GET' && url.pathname.startsWith('/api/reports/')) {
     const id = decodeURIComponent(url.pathname.slice('/api/reports/'.length));
@@ -133,7 +133,7 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
     const period = reportPeriod(input.kind, parseDate(input.anchorDate));
     const cached = await getReportForPeriod(env, period.kind, period.startDate);
     const cacheNeedsRepair = cached ? hasEncodingCorruption(cached) || needsSourceComparisonRepair(cached) : false;
-    if (cached && cached.dataAvailable && input.forceRefresh !== true && !cacheNeedsRepair) return json({ ok: true, data: await withPreviousWorkItems(env, cached) });
+    if (cached && cached.finalized !== false && cached.dataAvailable && input.forceRefresh !== true && !cacheNeedsRepair) return json({ ok: true, data: await withPreviousWorkItems(env, cached) });
     let refreshed: ReportSnapshot;
     try {
       refreshed = await loadSourceReport(env, period);
@@ -146,16 +146,19 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
         operations
       };
     }
-    const snapshot = preserveManualOperationMetrics(refreshed, cached);
-    const saved = await saveReport(env, snapshot, {
-      review: cached?.review || [], evaluations: cached?.evaluations || [], workItems: cached?.workItems || []
-    });
-    return json({ ok: true, data: await withPreviousWorkItems(env, saved) });
+    const snapshot = preserveManualOperationMetrics({ ...refreshed, finalized: cached?.finalized === true }, cached);
+    const transient: ReportRecord = {
+      ...snapshot, id: cached?.id || '', review: cached?.review || [], evaluations: cached?.evaluations || [], workItems: cached?.workItems || [],
+      createdAt: cached?.createdAt || snapshot.generatedAt, updatedAt: cached?.updatedAt || snapshot.generatedAt
+    };
+    return json({ ok: true, data: await withPreviousWorkItems(env, transient) });
   }
   if (request.method === 'POST' && url.pathname === '/api/reports') {
-    const input = await readJson<{ snapshot?: ReportSnapshot; review?: any[]; evaluations?: any[]; workItems?: any[] }>(request);
+    const input = await readJson<{ snapshot?: ReportSnapshot; review?: any[]; evaluations?: any[]; workItems?: any[]; finalize?: boolean }>(request);
     if (!input.snapshot?.period || !isKind(input.snapshot.period.kind)) return json({ ok: false, error: 'Thiếu snapshot báo cáo.' }, 400);
-    const record = await saveReport(env, input.snapshot, {
+    const existing = await getReportForPeriod(env, input.snapshot.period.kind, input.snapshot.period.startDate);
+    const snapshot = { ...input.snapshot, finalized: input.finalize === true || (existing ? existing.finalized !== false : false) };
+    const record = await saveReport(env, snapshot, {
       review: Array.isArray(input.review) ? input.review : [],
       evaluations: Array.isArray(input.evaluations) ? input.evaluations : [],
       workItems: Array.isArray(input.workItems) ? input.workItems : []

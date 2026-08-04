@@ -1,6 +1,6 @@
 (() => {
   const $ = (selector) => document.querySelector(selector);
-  const state = { kind: 'week', anchorDate: '', period: null, snapshot: null, id: '', review: [], evaluations: [], workItems: [], historyKind: 'week', settingsDraft: null };
+  const state = { kind: 'week', anchorDate: '', period: null, snapshot: null, id: '', review: [], evaluations: [], workItems: [], historyKind: 'week', settingsDraft: null, finalizeOnSave: false };
   const colors = ['#2563eb', '#7c3aed', '#f59e0b', '#ec4899', '#22c55e'];
 
   const emptyMetric = () => ({ value: null, previous: null, change: null });
@@ -418,23 +418,31 @@
   }
   async function applySettings(event) {
     event.preventDefault();
+    const finalize = state.finalizeOnSave;
     syncDraftRates();
     const draft = state.settingsDraft;
     if (!draft || draft.loading) return;
     setBusy(true); setNotice('');
     try {
-      const source = await api('/api/source-report', { method: 'POST', body: JSON.stringify({ kind: draft.period.kind, anchorDate: draft.period.anchorDate }) });
+      let source;
+      try {
+        source = await api('/api/source-report', { method: 'POST', body: JSON.stringify({ kind: draft.period.kind, anchorDate: draft.period.anchorDate }) });
+      } catch (error) {
+        if (finalize) throw error;
+        const currentMatchesDraft = state.snapshot?.period?.kind === draft.period.kind && state.snapshot?.period?.startDate === draft.period.startDate;
+        source = currentMatchesDraft ? structuredClone(state.snapshot) : emptySnapshot(draft.period);
+      }
       source.period = draft.period;
       source.operations.fastShippingRate = applyManualRate(source.operations.fastShippingRate, draft.shippingSpeedRate, draft.previousShippingSpeedRate);
       source.operations.quickResponseRate = applyManualRate(source.operations.quickResponseRate, draft.responseRate, draft.previousResponseRate);
-      const payload = { snapshot: source, review: [], evaluations: draft.evaluations, workItems: draft.workItems };
+      const payload = { snapshot: source, review: [], evaluations: draft.evaluations, workItems: draft.workItems, finalize };
       console.log('Saving for week:', draft.period.startDate, payload);
       const saved = await api('/api/reports', { method: 'POST', body: JSON.stringify(payload) });
       state.kind = draft.period.kind; state.anchorDate = draft.period.anchorDate; state.period = draft.period;
       saved.period = draft.period; state.snapshot = saved; state.id = saved.id; state.review = saved.previousWorkItems || []; state.evaluations = saved.evaluations || []; state.workItems = saved.workItems || [];
-      syncPeriodPath(state.period); $('#settingsDialog').close(); renderAll(); bindEditors(); setSync('Đã lưu Supabase', 'ready'); setNotice('Đã lưu toàn bộ dữ liệu nhập tay cho đúng kỳ báo cáo.', true); await loadHistory(state.historyKind);
+      syncPeriodPath(state.period); $('#settingsDialog').close(); renderAll(); bindEditors(); setSync(finalize ? 'Đã chốt báo cáo' : 'Đã lưu bản nháp', 'ready'); setNotice(''); await loadHistory(state.historyKind);
     } catch (error) { setNotice(error.message || 'Không thể lưu dữ liệu nhập tay.'); }
-    finally { setBusy(false); }
+    finally { state.finalizeOnSave = false; setBusy(false); }
   }
   function addEvaluation() {
     if (!state.settingsDraft) return;
@@ -446,7 +454,7 @@
     state.settingsDraft.workItems.push({ id, title: '', detail: '', kpi: '', owner: '', deadline: '', actions: [{ id: newId(), detail: '', kpi: '', owner: '', deadline: '' }], status: '', result: '' }); renderPopupWork();
   }
   function wire() {
-    $('#historyButton').addEventListener('click', openHistory); $('#closeHistoryButton').addEventListener('click', closeHistory); $('#overlay').addEventListener('click', closeHistory); $('#refreshButton').addEventListener('click', () => loadSource(true)); $('#saveButton').addEventListener('click', () => $('#settingsForm').requestSubmit()); $('#addEvaluationButton').addEventListener('click', addEvaluation); $('#addWorkButton').addEventListener('click', addWork); $('#settingsForm').addEventListener('submit', applySettings); $('#anchorDate').addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }); $('#periodPickerButton').addEventListener('click', () => togglePeriodPicker());
+    $('#historyButton').addEventListener('click', openHistory); $('#closeHistoryButton').addEventListener('click', closeHistory); $('#overlay').addEventListener('click', closeHistory); $('#refreshButton').addEventListener('click', () => loadSource(true)); $('#saveButton').addEventListener('click', () => { state.finalizeOnSave = true; $('#settingsForm').requestSubmit(); }); $('#applySettingsButton').addEventListener('click', () => { state.finalizeOnSave = false; }); $('#addEvaluationButton').addEventListener('click', addEvaluation); $('#addWorkButton').addEventListener('click', addWork); $('#settingsForm').addEventListener('submit', applySettings); $('#anchorDate').addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }); $('#periodPickerButton').addEventListener('click', () => togglePeriodPicker());
     document.querySelectorAll('input[name="reportKind"]').forEach((input) => input.addEventListener('change', () => { updatePeriodPreview(); loadSettingsDraft(); }));
     ['#fastShippingRateInput', '#quickResponseRateInput'].forEach((selector) => $(selector).addEventListener('input', syncDraftRates));
     $('#settingsAuthForm').addEventListener('submit', submitSettingsAuth);

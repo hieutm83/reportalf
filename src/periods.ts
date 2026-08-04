@@ -52,7 +52,10 @@ export function reportPeriod(kind: ReportKind, anchorDate: string): ReportPeriod
 export function latestWeekAnchor(timezone = 'Asia/Bangkok', now = new Date()): string {
   const today = localDate(timezone, now);
   const weekday = new Date(`${today}T00:00:00Z`).getUTCDay();
-  return shiftDate(today, -((weekday + 1) % 7));
+  // The anchor closes a Saturday-Friday report. The currently visible report
+  // therefore uses the upcoming Saturday (or next Saturday when today is one).
+  const daysUntilAnchor = weekday === 6 ? 7 : (6 - weekday + 7) % 7;
+  return shiftDate(today, daysUntilAnchor);
 }
 
 export function latestMonthAnchor(timezone = 'Asia/Bangkok', now = new Date()): string {

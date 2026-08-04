@@ -19,6 +19,7 @@ export interface ReportPeriod {
 
 export interface ReportSnapshot {
   period: ReportPeriod;
+  finalized?: boolean;
   generatedAt: string;
   dataAvailable: boolean;
   warnings: string[];
